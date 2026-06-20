@@ -1,0 +1,45 @@
+{
+  "pkg": "winesnob-design-system",
+  "globalName": "WineSnob",
+  "shape": "package",
+  "buildCmd": "npm run build",
+  "cssEntry": "src/styles/winesnob.css",
+  "previewArgs": {
+    "Logo": { "variant": "stacked" },
+    "Button": { "variant": "primary", "children": "Add a bottle" },
+    "TextField": { "label": "Wine name", "placeholder": "e.g. Château Margaux" },
+    "Select": {
+      "label": "Region",
+      "placeholder": "Choose a region",
+      "options": [
+        { "label": "Bordeaux", "value": "bordeaux" },
+        { "label": "Burgundy", "value": "burgundy" },
+        { "label": "Piedmont", "value": "piedmont" }
+      ]
+    },
+    "Tag": { "tone": "ready", "dot": true, "children": "Ready to drink" },
+    "BottleCard": {
+      "name": "Château Margaux",
+      "producer": "Premier Grand Cru Classé",
+      "vintage": 2015,
+      "region": "Margaux, Bordeaux",
+      "quantity": 6,
+      "status": "ready",
+      "value": "€4,200"
+    },
+    "CellarRow": {
+      "name": "Brunello di Montalcino",
+      "producer": "Biondi-Santi",
+      "vintage": 2016,
+      "region": "Tuscany",
+      "quantity": 2,
+      "status": "ready"
+    },
+    "StatCard": { "label": "Cellar value", "value": "€42,300", "hint": "248 bottles · 12 regions" },
+    "EmptyState": {
+      "title": "Nothing to declare. Yet.",
+      "message": "Your cellar is waiting. Add your first bottle and we’ll keep its counsel."
+    },
+    "AppHeader": {}
+  }
+}

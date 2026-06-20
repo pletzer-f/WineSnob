@@ -1,0 +1,458 @@
+/* WineSnob design system — foundations + component styling.
+   Quiet luxury: alabaster surfaces, hairline taupe borders, ink text,
+   Spectral for display, Figtree for interface, bordeaux + racing green
+   as rationed accents (kept under ~10% of any surface). */
+
+@import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=Figtree:wght@400;500;600&display=swap');
+
+:root {
+  /* Core palette */
+  --ws-alabaster: #FAF8F2;
+  --ws-alabaster-raised: #FDFCF9;
+  --ws-stone: #E8E3D8;
+  --ws-taupe: #C9C2B4;
+  --ws-line: #E4DECF;
+  --ws-ink: #2E2B26;
+  --ws-muted: #6B665C;
+  --ws-bordeaux: #6E2433;
+  --ws-bordeaux-deep: #581C29;
+  --ws-green: #1B4332;
+  --ws-green-soft: #E7EDE9;
+  --ws-cream: #F4EFE6;
+
+  /* Semantic roles */
+  --ws-bg: var(--ws-alabaster);
+  --ws-surface: var(--ws-alabaster-raised);
+  --ws-border: var(--ws-line);
+  --ws-border-strong: var(--ws-taupe);
+  --ws-text: var(--ws-ink);
+  --ws-text-muted: var(--ws-muted);
+  --ws-accent: var(--ws-bordeaux);
+  --ws-accent-contrast: var(--ws-cream);
+  --ws-ready: var(--ws-green);
+
+  /* Type */
+  --ws-font-display: 'Spectral', Georgia, 'Times New Roman', serif;
+  --ws-font-ui: 'Figtree', 'Helvetica Neue', Arial, sans-serif;
+
+  /* Spacing */
+  --ws-space-1: 4px;
+  --ws-space-2: 8px;
+  --ws-space-3: 12px;
+  --ws-space-4: 16px;
+  --ws-space-5: 24px;
+  --ws-space-6: 32px;
+  --ws-space-7: 48px;
+
+  /* Radius */
+  --ws-radius-sm: 6px;
+  --ws-radius-md: 10px;
+  --ws-radius-lg: 14px;
+
+  /* Elevation — barely there */
+  --ws-shadow: 0 1px 2px rgba(46, 43, 38, 0.04), 0 10px 28px rgba(46, 43, 38, 0.05);
+}
+
+:where([class^="ws-"], [class*=" ws-"]) {
+  box-sizing: border-box;
+}
+
+/* ----------------------------------------------------------------- Logo */
+.ws-logo {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ws-space-1);
+  font-family: var(--ws-font-display);
+  color: var(--ws-ink);
+  line-height: 1;
+  text-align: center;
+}
+.ws-logo__line {
+  font-weight: 500;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  font-size: 22px;
+}
+.ws-logo--horizontal {
+  flex-direction: row;
+  gap: 0;
+}
+.ws-logo--horizontal .ws-logo__line {
+  font-size: 20px;
+}
+.ws-logo--horizontal .ws-logo__line + .ws-logo__line {
+  margin-left: 0.34em;
+}
+.ws-logo--icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--ws-radius-md);
+  background: var(--ws-bordeaux);
+  color: var(--ws-cream);
+  align-items: center;
+  justify-content: center;
+}
+.ws-logo--icon .ws-logo__mark {
+  font-family: var(--ws-font-display);
+  font-weight: 500;
+  font-size: 22px;
+  letter-spacing: 0.08em;
+  text-indent: 0.08em;
+}
+.ws-logo--icon.ws-logo--quiet {
+  background: var(--ws-stone);
+  color: var(--ws-ink);
+  border: 0.5px solid var(--ws-taupe);
+}
+
+/* --------------------------------------------------------------- Button */
+.ws-btn {
+  font-family: var(--ws-font-ui);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ws-space-2);
+  padding: 12px 22px;
+  border-radius: var(--ws-radius-md);
+  border: 0.5px solid transparent;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+  white-space: nowrap;
+}
+.ws-btn--sm {
+  padding: 8px 14px;
+  font-size: 13px;
+}
+.ws-btn--primary {
+  background: var(--ws-bordeaux);
+  color: var(--ws-cream);
+}
+.ws-btn--primary:hover {
+  background: var(--ws-bordeaux-deep);
+}
+.ws-btn--secondary {
+  background: transparent;
+  color: var(--ws-ink);
+  border-color: var(--ws-taupe);
+}
+.ws-btn--secondary:hover {
+  background: var(--ws-stone);
+}
+.ws-btn--ghost {
+  background: transparent;
+  color: var(--ws-ink);
+}
+.ws-btn--ghost:hover {
+  background: var(--ws-stone);
+}
+.ws-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------ TextField */
+.ws-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  font-family: var(--ws-font-ui);
+  width: 100%;
+}
+.ws-label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ws-muted);
+}
+.ws-input,
+.ws-selectctl {
+  font-family: var(--ws-font-ui);
+  font-size: 15px;
+  color: var(--ws-ink);
+  background: var(--ws-surface);
+  border: 0.5px solid var(--ws-taupe);
+  border-radius: var(--ws-radius-md);
+  padding: 11px 14px;
+  width: 100%;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.ws-input::placeholder {
+  color: var(--ws-muted);
+  opacity: 0.7;
+}
+.ws-input:focus,
+.ws-selectctl:focus {
+  outline: none;
+  border-color: var(--ws-bordeaux);
+  box-shadow: 0 0 0 3px rgba(110, 36, 51, 0.10);
+}
+.ws-field--error .ws-input,
+.ws-field--error .ws-selectctl {
+  border-color: var(--ws-bordeaux);
+}
+.ws-hint {
+  font-size: 12px;
+  color: var(--ws-muted);
+}
+.ws-hint--error {
+  color: var(--ws-bordeaux);
+}
+
+/* -------------------------------------------------------------- Select */
+.ws-selectctl {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ws-muted) 50%),
+    linear-gradient(135deg, var(--ws-muted) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 19px, calc(100% - 13px) 19px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 36px;
+}
+
+/* ----------------------------------------------------------------- Tag */
+.ws-tag {
+  font-family: var(--ws-font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 0.5px solid var(--ws-taupe);
+  color: var(--ws-muted);
+  background: transparent;
+  white-space: nowrap;
+}
+.ws-tag__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+.ws-tag--ready {
+  color: var(--ws-green);
+  border-color: transparent;
+  background: var(--ws-green-soft);
+}
+.ws-tag--cellar {
+  color: var(--ws-muted);
+}
+.ws-tag--accent {
+  color: var(--ws-bordeaux);
+  border-color: transparent;
+  background: rgba(110, 36, 51, 0.08);
+}
+
+/* --------------------------------------------------------- BottleCard */
+.ws-bottle {
+  font-family: var(--ws-font-ui);
+  display: flex;
+  gap: var(--ws-space-4);
+  background: var(--ws-surface);
+  border: 0.5px solid var(--ws-border);
+  border-radius: var(--ws-radius-lg);
+  padding: var(--ws-space-5);
+  box-shadow: var(--ws-shadow);
+  min-width: 280px;
+  text-align: left;
+  width: 100%;
+}
+.ws-bottle__spine {
+  width: 3px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--ws-bordeaux);
+  align-self: stretch;
+}
+.ws-bottle--ready .ws-bottle__spine {
+  background: var(--ws-green);
+}
+.ws-bottle__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-3);
+  flex: 1;
+  min-width: 0;
+}
+.ws-bottle__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--ws-space-4);
+}
+.ws-bottle__name {
+  font-family: var(--ws-font-display);
+  font-weight: 500;
+  font-size: 19px;
+  color: var(--ws-ink);
+  margin: 0;
+  line-height: 1.25;
+}
+.ws-bottle__producer {
+  font-size: 13px;
+  color: var(--ws-muted);
+  margin: 2px 0 0;
+}
+.ws-bottle__vintage {
+  font-family: var(--ws-font-display);
+  font-size: 22px;
+  color: var(--ws-ink);
+  flex: none;
+}
+.ws-bottle__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ws-space-2) var(--ws-space-5);
+}
+.ws-bottle__meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ws-bottle__meta-label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ws-muted);
+}
+.ws-bottle__meta-value {
+  font-size: 14px;
+  color: var(--ws-ink);
+}
+.ws-bottle__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--ws-space-3);
+  padding-top: var(--ws-space-3);
+  border-top: 0.5px solid var(--ws-border);
+}
+
+/* ---------------------------------------------------------- CellarRow */
+.ws-row {
+  font-family: var(--ws-font-ui);
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-4);
+  padding: var(--ws-space-4) var(--ws-space-3);
+  border-bottom: 0.5px solid var(--ws-border);
+  width: 100%;
+  text-align: left;
+  background: transparent;
+}
+.ws-row__vintage {
+  font-family: var(--ws-font-display);
+  font-size: 18px;
+  color: var(--ws-ink);
+  width: 52px;
+  flex: none;
+}
+.ws-row__main {
+  flex: 1;
+  min-width: 0;
+}
+.ws-row__name {
+  font-size: 15px;
+  color: var(--ws-ink);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-row__sub {
+  font-size: 13px;
+  color: var(--ws-muted);
+  margin: 2px 0 0;
+}
+.ws-row__qty {
+  font-size: 13px;
+  color: var(--ws-muted);
+  flex: none;
+}
+
+/* ----------------------------------------------------------- StatCard */
+.ws-stat {
+  font-family: var(--ws-font-ui);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  background: var(--ws-surface);
+  border: 0.5px solid var(--ws-border);
+  border-radius: var(--ws-radius-lg);
+  padding: var(--ws-space-5);
+  min-width: 160px;
+}
+.ws-stat__label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ws-muted);
+}
+.ws-stat__value {
+  font-family: var(--ws-font-display);
+  font-size: 32px;
+  font-weight: 500;
+  color: var(--ws-ink);
+  line-height: 1;
+}
+.ws-stat__hint {
+  font-size: 12px;
+  color: var(--ws-muted);
+}
+
+/* --------------------------------------------------------- EmptyState */
+.ws-empty {
+  font-family: var(--ws-font-ui);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--ws-space-4);
+  padding: var(--ws-space-7) var(--ws-space-5);
+  max-width: 420px;
+  margin: 0 auto;
+}
+.ws-empty__title {
+  font-family: var(--ws-font-display);
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--ws-ink);
+  margin: 0;
+}
+.ws-empty__message {
+  font-size: 15px;
+  color: var(--ws-muted);
+  margin: 0;
+  line-height: 1.6;
+}
+.ws-empty__action {
+  margin-top: var(--ws-space-2);
+}
+
+/* ---------------------------------------------------------- AppHeader */
+.ws-header {
+  font-family: var(--ws-font-ui);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ws-space-4);
+  padding: var(--ws-space-4) var(--ws-space-6);
+  background: var(--ws-bg);
+  border-bottom: 0.5px solid var(--ws-border);
+  width: 100%;
+}
+.ws-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-3);
+}
