@@ -456,3 +456,299 @@
   align-items: center;
   gap: var(--ws-space-3);
 }
+
+/* ===================================================== Feature components */
+
+/* ---------------------------------------------------------- CaptureBar */
+.ws-capture {
+  font-family: var(--ws-font-ui);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ws-space-5);
+  padding: var(--ws-space-6) var(--ws-space-5);
+  background: var(--ws-surface);
+  border: 0.5px solid var(--ws-border);
+  border-radius: var(--ws-radius-lg);
+  width: 100%;
+  max-width: 360px;
+}
+.ws-capture__modes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--ws-stone);
+  border-radius: 999px;
+}
+.ws-capture__mode {
+  font-family: var(--ws-font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ws-muted);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 7px 16px;
+  cursor: pointer;
+}
+.ws-capture__mode--active {
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  box-shadow: 0 1px 2px rgba(46, 43, 38, 0.08);
+}
+.ws-capture__shutter {
+  width: 68px;
+  height: 68px;
+  border-radius: 999px;
+  background: var(--ws-bordeaux);
+  border: 4px solid var(--ws-cream);
+  box-shadow: 0 0 0 1px var(--ws-bordeaux);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ws-cream);
+}
+.ws-capture__hint {
+  font-size: 12px;
+  color: var(--ws-muted);
+}
+
+/* ----------------------------------------------------------- ReviewRow */
+.ws-review {
+  font-family: var(--ws-font-ui);
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-4);
+  padding: var(--ws-space-4) var(--ws-space-3);
+  border-bottom: 0.5px solid var(--ws-border);
+  width: 100%;
+}
+.ws-review__vintage {
+  font-family: var(--ws-font-display);
+  font-size: 18px;
+  color: var(--ws-ink);
+  width: 52px;
+  flex: none;
+}
+.ws-review__main {
+  flex: 1;
+  min-width: 0;
+}
+.ws-review__name {
+  font-size: 15px;
+  color: var(--ws-ink);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-review__sub {
+  font-size: 13px;
+  color: var(--ws-muted);
+  margin: 2px 0 0;
+}
+.ws-review__edit {
+  font-family: var(--ws-font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ws-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px 8px;
+  flex: none;
+}
+.ws-review__edit:hover {
+  color: var(--ws-ink);
+}
+
+/* ----------------------------------------------------------- ImportCard */
+.ws-import {
+  font-family: var(--ws-font-ui);
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-4);
+  width: 100%;
+  text-align: left;
+  background: var(--ws-surface);
+  border: 0.5px solid var(--ws-border);
+  border-radius: var(--ws-radius-lg);
+  padding: var(--ws-space-4) var(--ws-space-5);
+  cursor: pointer;
+}
+.ws-import:hover {
+  border-color: var(--ws-taupe);
+}
+.ws-import__badge {
+  font-family: var(--ws-font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ws-bordeaux);
+  background: rgba(110, 36, 51, 0.08);
+  border-radius: var(--ws-radius-sm);
+  padding: 8px 10px;
+  flex: none;
+  min-width: 46px;
+  text-align: center;
+}
+.ws-import__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ws-import__title {
+  font-size: 15px;
+  color: var(--ws-ink);
+  margin: 0;
+}
+.ws-import__hint {
+  font-size: 13px;
+  color: var(--ws-muted);
+  margin: 2px 0 0;
+}
+.ws-import__chev {
+  color: var(--ws-taupe);
+  flex: none;
+  display: flex;
+}
+
+/* ---------------------------------------------------------- DrinkWindow */
+.ws-window {
+  font-family: var(--ws-font-ui);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  width: 100%;
+}
+.ws-window__label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ws-muted);
+}
+.ws-window__track {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ws-stone);
+}
+.ws-window__range {
+  position: absolute;
+  top: 0;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ws-green);
+}
+.ws-window--cellaring .ws-window__range {
+  background: var(--ws-taupe);
+}
+.ws-window--past .ws-window__range {
+  background: var(--ws-muted);
+}
+.ws-window__now {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--ws-ink);
+}
+.ws-window__scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--ws-muted);
+}
+
+/* -------------------------------------------------------------- Rating */
+.ws-rating {
+  font-family: var(--ws-font-ui);
+  display: inline-flex;
+  align-items: center;
+  color: var(--ws-bordeaux);
+}
+.ws-rating__stars {
+  display: inline-flex;
+  gap: 2px;
+}
+.ws-rating__score {
+  font-size: 13px;
+  color: var(--ws-muted);
+  margin-left: 8px;
+}
+
+/* --------------------------------------------------------- SearchField */
+.ws-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.ws-search__icon {
+  position: absolute;
+  left: 14px;
+  color: var(--ws-muted);
+  display: flex;
+  pointer-events: none;
+}
+.ws-search__input {
+  font-family: var(--ws-font-ui);
+  font-size: 15px;
+  color: var(--ws-ink);
+  background: var(--ws-surface);
+  border: 0.5px solid var(--ws-taupe);
+  border-radius: 999px;
+  padding: 11px 16px 11px 40px;
+  width: 100%;
+}
+.ws-search__input::placeholder {
+  color: var(--ws-muted);
+  opacity: 0.7;
+}
+.ws-search__input:focus {
+  outline: none;
+  border-color: var(--ws-bordeaux);
+  box-shadow: 0 0 0 3px rgba(110, 36, 51, 0.10);
+}
+
+/* -------------------------------------------------------------- TabBar */
+.ws-tabbar {
+  font-family: var(--ws-font-ui);
+  display: flex;
+  width: 100%;
+  background: var(--ws-bg);
+  border-top: 0.5px solid var(--ws-border);
+}
+.ws-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--ws-muted);
+  position: relative;
+}
+.ws-tab__label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+.ws-tab--active {
+  color: var(--ws-ink);
+}
+.ws-tab__dot {
+  position: absolute;
+  top: 0;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--ws-bordeaux);
+}

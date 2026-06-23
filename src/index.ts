@@ -27,3 +27,24 @@ export type { EmptyStateProps } from './components/EmptyState'
 
 export { AppHeader } from './components/AppHeader'
 export type { AppHeaderProps } from './components/AppHeader'
+
+export { CaptureBar } from './components/CaptureBar'
+export type { CaptureBarProps, CaptureMode } from './components/CaptureBar'
+
+export { ReviewRow } from './components/ReviewRow'
+export type { ReviewRowProps } from './components/ReviewRow'
+
+export { ImportCard } from './components/ImportCard'
+export type { ImportCardProps } from './components/ImportCard'
+
+export { DrinkWindow } from './components/DrinkWindow'
+export type { DrinkWindowProps } from './components/DrinkWindow'
+
+export { Rating } from './components/Rating'
+export type { RatingProps } from './components/Rating'
+
+export { SearchField } from './components/SearchField'
+export type { SearchFieldProps } from './components/SearchField'
+
+export { TabBar } from './components/TabBar'
+export type { TabBarProps, TabBarItem } from './components/TabBar'
