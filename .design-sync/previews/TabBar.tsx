@@ -10,6 +10,8 @@ export const Cellar = () => (
   <div
     style={{
       maxWidth: 420,
+      paddingTop: 'var(--ws-space-4)',
+      background: 'var(--ws-bg)',
       border: '0.5px solid var(--ws-border)',
       borderRadius: 'var(--ws-radius-lg)',
       overflow: 'hidden',

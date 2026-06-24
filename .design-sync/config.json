@@ -5,5 +5,8 @@
   "projectId": "8ee7cce4-ef02-4029-92e8-92ccde93f21b",
   "buildCmd": "npm run build",
   "cssEntry": "src/styles/winesnob.css",
-  "readmeHeader": ".design-sync/conventions.md"
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "Modal": { "cardMode": "single", "primaryStory": "Confirm" }
+  }
 }

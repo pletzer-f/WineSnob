@@ -4,7 +4,9 @@ Repo-specific gotchas for future syncs.
 
 - **Config migration (2026-06-21):** the original config carried a `previewArgs` key that the current converter rejects (strict top-level schema). Removed it. The current preview mechanism is authored `.design-sync/previews/<Name>.tsx` files. The old per-component prop values are preserved below as composition data for authoring.
 - **Build:** `npm run build` (tsup) → `dist/index.js` + `dist/index.d.ts`. The package's own `node_modules` has react/react-dom (devDeps), so `--node-modules ./node_modules` works.
-- **Single group:** all 10 components are in the `general` group (no docs/categories in the repo).
+- **Single group:** all components are in the `general` group (no docs/categories in the repo).
+- **Component count (2026-06-23):** grew from 10 → 17. Added CaptureBar, DrinkWindow, ImportCard, Rating, ReviewRow, SearchField, TabBar — all exported from `src/index.ts`, all with authored previews in `.design-sync/previews/`, all graded `good`.
+- **TabBar preview:** `.ws-tab__dot` (the active-tab indicator) is `position:absolute; top:0` on the tab — correct for a bottom-nav bar, but in an isolated `overflow:hidden` card it sits flush to the top edge and reads as clipped. The preview wrapper carries `paddingTop: var(--ws-space-4)` to give it room; keep that if regrading.
 
 ## Composition data (from the prior run's previewArgs)
 - **Logo**: `variant: "stacked"`
@@ -26,6 +28,6 @@ Repo-specific gotchas for future syncs.
 
 ## Re-sync risks
 - **Brand fonts depend on the network.** Spectral + Figtree come from a remote `@import` (Google Fonts). Any design built with the DS renders in fallback fonts if that host is unreachable. There is no shipped `@font-face`. If you ever want fonts to ship, add them via `cfg.extraFonts`; for now this is intentional (host app serves them).
-- **All 10 previews are authored and owned** in `.design-sync/previews/`. They reference the real exported API; a breaking prop rename upstream would need the matching preview updated. Grades carry forward via the uploaded `_ds_sync.json` — a source change to a `.tsx` or the component re-grades just that one.
+- **All 17 previews are authored and owned** in `.design-sync/previews/`. They reference the real exported API; a breaking prop rename upstream would need the matching preview updated. Grades carry forward via the uploaded `_ds_sync.json` — a source change to a `.tsx` or the component re-grades just that one.
 - **Single `general` group.** The repo has no docs/categories, so every component lands in `general`. If categories are added later (frontmatter `category` in a doc, or `cfg.docsMap` stubs), regrouping will move card paths — the driver's `deletePaths` handles the old paths.
 - **Build is deterministic** (tsup → `dist/`). An unnecessary rebuild is a no-op; when in doubt, rebuild.
