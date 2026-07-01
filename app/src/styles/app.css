@@ -118,6 +118,29 @@ body {
   margin-top: auto;
 }
 
+/* Modal form rows: two-up on desktop, stacked on mobile. Native date/select
+   inputs have an intrinsic min width that overflows a tight 1fr column and
+   overlaps its neighbour, so these must collapse to one column on phones. */
+.ws-form-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--ws-space-4);
+}
+.ws-form-2col > * {
+  min-width: 0;
+}
+
+/* Modal action row: right-aligned on desktop (a spacer pushes the buttons
+   over); on mobile the buttons wrap so the primary is never clipped. */
+.ws-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-3);
+}
+.ws-modal-actions__spacer {
+  flex: 1;
+}
+
 @media (max-width: 767.98px) {
   .ws-header {
     padding: var(--ws-space-5) var(--ws-space-5);
@@ -174,5 +197,20 @@ body {
   }
   .ws-log-buyagain {
     font-size: 14px !important;
+  }
+  /* Stack paired form fields so native date/select inputs never overlap. */
+  .ws-form-2col {
+    grid-template-columns: 1fr;
+  }
+  /* Let modal actions wrap instead of overflowing the panel edge. */
+  .ws-modal-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .ws-modal-actions__spacer {
+    display: none;
+  }
+  .ws-modal-actions > * {
+    flex: 1 1 auto;
   }
 }

@@ -392,7 +392,7 @@ function DrinkLog() {
         <div style={{ fontSize: 14, color: 'var(--ws-muted)', margin: '-4px 0 2px' }}>
           You’re opening a bottle of <span style={{ color: 'var(--ws-ink)', fontWeight: 500 }}>{bottle ? bottle.name : 'this wine'}</span>. Capture the moment, or just log it.
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--ws-space-4)' }}>
+        <div className="ws-form-2col">
           <div>
             <div style={miniLabel}>Date drunk</div>
             <input
@@ -428,11 +428,11 @@ function DrinkLog() {
           </div>
           <Switch checked={df.buyAgain} onChange={(c) => s.setDrinkField('buyAgain', c)} label="Buy again" />
         </div>
-        <div style={{ display: 'flex', gap: 'var(--ws-space-3)', alignItems: 'center', borderTop: '0.5px solid var(--ws-border)', paddingTop: 'var(--ws-space-4)' }}>
+        <div className="ws-modal-actions" style={{ borderTop: '0.5px solid var(--ws-border)', paddingTop: 'var(--ws-space-4)' }}>
           <Button variant="ghost" onClick={s.quickDrink}>
             Just log it
           </Button>
-          <div style={{ flex: 1 }} />
+          <div className="ws-modal-actions__spacer" />
           <Button variant="secondary" onClick={s.closeDrinkLog}>
             Cancel
           </Button>
