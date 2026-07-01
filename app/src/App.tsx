@@ -1,6 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore, type Screen } from '@/store/store'
 import { bootstrapSession } from '@/data/session'
+import { isStandalone } from '@/lib/pwa'
+import { Landing } from '@/screens/Landing'
 import { AppFrame } from '@/components/AppFrame'
 import { Toaster } from '@/components/Toaster'
 import { Modals } from '@/modals/Modals'
@@ -45,11 +47,19 @@ function ScreenView({ screen }: { screen: Screen }) {
 export function App() {
   const ready = useStore((s) => s.ready)
   const onboarded = useStore((s) => s.onboarded)
+  const userId = useStore((s) => s.userId)
   const screen = useStore((s) => s.screen)
+  const [continueWeb, setContinueWeb] = useState(false)
 
   useEffect(() => bootstrapSession(), [])
 
   if (!ready) return null
+
+  // Public front door: a browser visitor who isn't signed in sees the install
+  // landing first. Installed (standalone) launches and signed-in users skip it.
+  if (!onboarded && !userId && !continueWeb && !isStandalone()) {
+    return <Landing onContinue={() => setContinueWeb(true)} />
+  }
 
   if (!onboarded) return <Onboarding />
 

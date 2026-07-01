@@ -28,12 +28,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      // Temporarily self-destroying: ships a service worker that unregisters
-      // itself and clears all caches on every client, purging stale bundles
-      // during active launch iteration. Re-enable full PWA (offline/install)
-      // once the app stabilizes, with prompt-on-update handling.
-      selfDestroying: true,
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      // Clean update handling: a new deploy takes control immediately and old
+      // precache is purged, so clients don't get stuck on a stale bundle.
+      workbox: { cleanupOutdatedCaches: true, clientsClaim: true, skipWaiting: true },
       manifest: {
         name: 'WineSnob',
         short_name: 'WineSnob',
@@ -44,8 +42,9 @@ export default defineConfig({
         orientation: 'portrait',
         start_url: '/',
         icons: [
-          { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-          { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+          { src: 'pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),
