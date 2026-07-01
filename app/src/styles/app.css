@@ -118,6 +118,16 @@ body {
   margin-top: auto;
 }
 
+/* Top bar: keep its contents inside the frame on narrow screens. The wordmark
+   stays intact, the actions cluster is allowed to shrink, and the cellar
+   switcher truncates — so the account icon never drifts off the right edge. */
+.ws-header > .ws-logo {
+  flex: none;
+}
+.ws-header__actions {
+  min-width: 0;
+}
+
 /* Modal form rows: two-up on desktop, stacked on mobile. Native date/select
    inputs have an intrinsic min width that overflows a tight 1fr column and
    overlaps its neighbour, so these must collapse to one column on phones. */
@@ -143,7 +153,8 @@ body {
 
 @media (max-width: 767.98px) {
   .ws-header {
-    padding: var(--ws-space-5) var(--ws-space-5);
+    padding: var(--ws-space-5) max(var(--ws-space-5), env(safe-area-inset-right))
+      var(--ws-space-5) max(var(--ws-space-5), env(safe-area-inset-left));
   }
   .ws-hide-mobile {
     display: none !important;

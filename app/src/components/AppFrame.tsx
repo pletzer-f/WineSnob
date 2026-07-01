@@ -86,6 +86,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
           color: 'var(--ws-ink)',
           padding: '6px 12px',
           marginRight: 4,
+          minWidth: 0,
           maxWidth: '46vw',
         }}
       >
@@ -101,7 +102,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
       <button
         onClick={() => go('settings')}
         aria-label="Account"
-        style={{ background: 'none', border: 0, cursor: 'pointer', padding: 0, marginLeft: 12, display: 'inline-flex' }}
+        style={{ background: 'none', border: 0, cursor: 'pointer', padding: 0, marginLeft: 12, display: 'inline-flex', flex: 'none' }}
       >
         <Avatar name={accountName} size={32} />
       </button>

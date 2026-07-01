@@ -21,6 +21,25 @@ if (typeof window !== 'undefined') {
   })
 }
 
+// Keep the installed app fresh. iOS home-screen PWAs are lazy about checking
+// for a new service worker, which is why a shipped change can appear "stuck"
+// on an old version. Nudge an update check whenever the app regains focus or
+// becomes visible again; with autoUpdate + skipWaiting the new version then
+// activates and the page reloads on its own. This only checks — it never
+// reloads directly, so there is no refresh loop.
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  const checkForUpdate = () => {
+    navigator.serviceWorker
+      .getRegistration()
+      .then((reg) => reg?.update())
+      .catch(() => {})
+  }
+  window.addEventListener('focus', checkForUpdate)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForUpdate()
+  })
+}
+
 /** True when the app is running as an installed / standalone PWA. */
 export function isStandalone(): boolean {
   if (typeof window === 'undefined') return false
