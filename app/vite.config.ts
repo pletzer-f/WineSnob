@@ -15,6 +15,10 @@ export default defineConfig({
       'winesnob-design-system/styles.css': `${dsRoot}/styles/winesnob.css`,
       'winesnob-design-system': `${dsRoot}/index.ts`,
     },
+    // The design system lives at ../src and imports React. Dedupe forces those
+    // imports to resolve to the app's single React copy, so the bundle works
+    // even when only app/node_modules is installed (e.g. on Vercel).
+    dedupe: ['react', 'react-dom'],
   },
   server: {
     // allow importing the design system that lives one level up
