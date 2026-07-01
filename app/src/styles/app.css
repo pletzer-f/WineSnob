@@ -1,0 +1,178 @@
+/* App-level layout on top of the WineSnob design system.
+   Ported from the prototype's <style> block: the responsive chrome, the
+   two-column add hero, equal-height cellar grid, and mobile tab bar. All the
+   component styling and tokens come from winesnob-design-system/styles.css. */
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--ws-bg);
+  color: var(--ws-ink);
+  font-family: var(--ws-font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---- interaction helpers (replace the prototype's inline style-hover) ---- */
+.ws-lift {
+  transition: transform 0.16s ease, border-color 0.16s ease;
+}
+.ws-lift:hover {
+  transform: translateY(-2px);
+}
+.ws-linkish {
+  color: var(--ws-muted);
+  transition: color 0.15s ease;
+}
+.ws-linkish:hover {
+  color: var(--ws-ink);
+}
+.ws-linkish--accent:hover {
+  color: var(--ws-bordeaux);
+}
+.ws-hairline-btn {
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.ws-hairline-btn:hover {
+  border-color: var(--ws-border-strong) !important;
+  color: var(--ws-ink);
+}
+.ws-fade:hover {
+  opacity: 0.82;
+}
+.ws-card-btn {
+  transition: border-color 0.15s ease, transform 0.16s ease;
+}
+.ws-card-btn:hover {
+  border-color: var(--ws-border-strong) !important;
+}
+.ws-danger-hover:hover {
+  color: var(--ws-bordeaux) !important;
+  border-color: var(--ws-bordeaux) !important;
+}
+
+/* Desktop-only header CTA (the bottom Add tab covers it on mobile). */
+.ws-hide-mobile {
+  display: inline-flex;
+}
+
+.ws-detail__actions {
+  flex-wrap: wrap;
+}
+
+/* Bottle detail: let the BottleDetail card fill the column (DS caps it at 560px). */
+.ws-detail-page .ws-detail {
+  max-width: none;
+}
+
+/* Cellar-log stat cards: let long text values wrap inside the card. */
+.ws-log-stats .ws-stat__value {
+  font-size: 24px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Add-a-bottle: broad two-column capture layout. */
+.ws-add-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--ws-space-6);
+  align-items: stretch;
+}
+
+/* CaptureBar fills its column so its card matches the height of its neighbours. */
+.ws-cap-cell > * {
+  width: 100%;
+  max-width: 420px;
+}
+.ws-cap-cell .ws-capture {
+  height: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  justify-content: center;
+}
+
+/* Equal-height bottle cards in the grid. */
+.ws-cellar-grid {
+  grid-auto-rows: 1fr;
+}
+.ws-cellar-grid > div {
+  height: 100%;
+  display: flex;
+}
+.ws-cellar-grid .ws-bottle {
+  height: 100%;
+  flex: 1;
+}
+.ws-cellar-grid .ws-bottle__foot {
+  margin-top: auto;
+}
+
+@media (max-width: 767.98px) {
+  .ws-header {
+    padding: var(--ws-space-5) var(--ws-space-5);
+  }
+  .ws-hide-mobile {
+    display: none !important;
+  }
+  /* Stack the bottle-detail actions full-width for easy tapping. */
+  .ws-detail__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ws-detail__actions > * {
+    width: 100%;
+  }
+  /* Tab bar pinned to the bottom of the viewport. */
+  .ws-shell__tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+  }
+  .ws-tabbar {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-shadow: 0 -1px 0 var(--ws-border);
+  }
+  .ws-tab {
+    padding: 18px 6px 20px;
+    gap: 8px;
+  }
+  .ws-tab__label {
+    font-size: 13px;
+    letter-spacing: 0.09em;
+  }
+  .ws-tab__dot {
+    width: 22px;
+    height: 2px;
+  }
+  /* Clear the fixed bar. */
+  .ws-app-main {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .ws-mobile-pad {
+    padding: var(--ws-space-6) var(--ws-space-5) !important;
+  }
+  .ws-add-cols {
+    grid-template-columns: 1fr;
+    gap: var(--ws-space-5);
+  }
+  .ws-cap-cell > * {
+    max-width: 360px;
+    margin: 0 auto;
+  }
+  .ws-log-buyagain {
+    font-size: 14px !important;
+  }
+}
