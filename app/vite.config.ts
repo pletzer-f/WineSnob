@@ -28,6 +28,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Temporarily self-destroying: ships a service worker that unregisters
+      // itself and clears all caches on every client, purging stale bundles
+      // during active launch iteration. Re-enable full PWA (offline/install)
+      // once the app stabilizes, with prompt-on-update handling.
+      selfDestroying: true,
       includeAssets: ['favicon.svg'],
       manifest: {
         name: 'WineSnob',
