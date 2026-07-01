@@ -61,8 +61,8 @@ function AuthStep() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        // session.ts loads the user's data; reveal the app.
-        useStore.setState({ onboarded: true, screen: 'cellar' })
+        // Do not set state here. session.ts loads the profile and decides:
+        // onboarded users land in the app; first-time users get the intro.
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Something went wrong.')

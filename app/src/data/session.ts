@@ -9,6 +9,10 @@ import { pullUserData, startRemoteSync } from './repo'
  * Supabase is configured — subscribes to auth and loads the signed-in user's
  * cloud data. Returns an unsubscribe function.
  */
+// Guards against re-loading (and re-launching onboarding) on repeat auth events
+// such as token refreshes, which fire with the same user.
+let loadedUserId: string | null = null
+
 export function bootstrapSession(): () => void {
   const store = useStore.getState()
 
@@ -21,30 +25,46 @@ export function bootstrapSession(): () => void {
     return () => {}
   }
 
-  // Supabase mode: the auth session is the source of truth. Never reveal a
-  // stale local snapshot before confirming who is signed in.
-  supabase.auth.getSession().then(({ data }) => {
-    if (data.session) void onSignedIn(data.session)
-    else useStore.setState({ ready: true })
-  })
-
+  // Supabase mode: the auth session is the source of truth. INITIAL_SESSION
+  // (fired on subscribe) covers page reloads; SIGNED_IN covers fresh logins.
+  // Other events (token refresh, user update) must NOT re-run the loader.
   const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-    if (session) void onSignedIn(session)
-    else if (event === 'SIGNED_OUT') useStore.getState().onSignedOut()
+    if (event === 'SIGNED_OUT') {
+      loadedUserId = null
+      useStore.getState().onSignedOut()
+      return
+    }
+    if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+      void onSignedIn(session)
+    } else if (event === 'INITIAL_SESSION' && !session) {
+      useStore.setState({ ready: true })
+    }
   })
 
   return () => sub.subscription.unsubscribe()
 }
 
 async function onSignedIn(session: Session) {
+  if (session.user.id === loadedUserId) return
+  loadedUserId = session.user.id
+
   const store = useStore.getState()
   store.onSignedIn(session.user.id, session.user.email || '')
   startRemoteSync()
   try {
     const data = await pullUserData(session.user.id)
-    if (data) store.hydrate(data)
+    if (data) {
+      store.hydrate(data)
+      // First real login (or an account that never finished onboarding):
+      // run the welcome intro. finishOnboarding flips onboarded → true and
+      // persists it, so later logins land straight in the app.
+      if (!data.onboarded) useStore.setState({ obStep: 'welcome' })
+    } else {
+      // No profile row yet — treat as a brand-new user.
+      useStore.setState({ onboarded: false, obStep: 'welcome' })
+    }
   } catch (e) {
-    console.error('Failed to load cellar', e)
+    console.error('Failed to load your cellar', e)
   } finally {
     useStore.setState({ ready: true })
   }
