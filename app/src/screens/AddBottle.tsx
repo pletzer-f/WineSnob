@@ -94,7 +94,7 @@ export function AddBottle() {
             <div style={{ ...kicker, marginBottom: 8 }}>Add to cellar</div>
             <h1 style={{ ...h1, fontSize: 34, marginBottom: 10 }}>Add a bottle</h1>
             <p style={{ margin: '0 auto', maxWidth: 520, fontSize: 15, lineHeight: 1.55, color: 'var(--ws-muted)' }}>
-              Point at a label and WineSnob reads the vintage, producer and region for you — or photograph a whole case to add a rack at once.
+              Point at a label and WineSnob reads the vintage, producer and region for you, or photograph a whole case to add a rack at once.
             </p>
           </div>
 
@@ -107,7 +107,7 @@ export function AddBottle() {
               <button className="ws-hairline-btn" onClick={s.openManual} style={altBtn}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 19, color: 'var(--ws-ink)', marginBottom: 5 }}>Enter by hand</div>
-                  <div style={{ fontSize: 13.5, color: 'var(--ws-muted)', lineHeight: 1.5 }}>Type the wine in yourself — every field, full control.</div>
+                  <div style={{ fontSize: 13.5, color: 'var(--ws-muted)', lineHeight: 1.5 }}>Type the wine in yourself. Every field, full control.</div>
                 </div>
                 <span style={{ fontSize: 18, color: 'var(--ws-muted)', flexShrink: 0 }}>→</span>
               </button>
@@ -135,7 +135,7 @@ export function AddBottle() {
             </p>
           </div>
           <Uploader title="Drop a file to import" hint="CSV, Excel, or a CellarTracker export, up to 5,000 rows" accept=".csv,.xlsx,.pdf" onFiles={(f) => runImport(Array.from(f))} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--ws-space-3)' }}>
+          <div className="ws-form-2col" style={{ gap: 'var(--ws-space-3)' }}>
             <ImportCard title="From a spreadsheet" hint="CSV, Excel, or a CellarTracker export" badge="CSV" onClick={onImportClick} />
             <ImportCard title="From a merchant list" hint="A PDF order or invoice from your wine merchant" badge="PDF" onClick={onImportClick} />
           </div>
@@ -201,8 +201,8 @@ function ReviewStep() {
           const expanded = !!s.reviewExpanded[i]
           const dupMessage = r.dupId
             ? isMerge
-              ? `Already in your cellar — adding to ${r.dupName} (now ${r.dupQty}, becomes ${r.dupQty + (r.quantity || 1)}).`
-              : `Already in your cellar — ${r.dupName} (${r.dupQty} on hand). Keeping this as a separate line.`
+              ? `Already in your cellar. Adding to ${r.dupName} (now ${r.dupQty}, becomes ${r.dupQty + (r.quantity || 1)}).`
+              : `Already in your cellar as ${r.dupName} (${r.dupQty} on hand). Keeping this as a separate line.`
             : ''
           return (
             <div key={i} style={{ background: 'var(--ws-surface)', border: `0.5px solid ${r.confidence === 'low' ? 'var(--ws-bordeaux)' : 'var(--ws-border)'}`, borderRadius: 'var(--ws-radius-lg)', boxShadow: 'var(--ws-shadow-sm)', overflow: 'hidden' }}>
@@ -234,12 +234,12 @@ function ReviewStep() {
                 <div style={{ padding: 16, borderTop: '0.5px solid var(--ws-border)', display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-4)' }}>
                   <TextField label="Wine name" value={r.name} onChange={(e) => s.updateCaptured(i, { name: e.target.value })} />
                   <TextField label="Producer" value={r.producer} onChange={(e) => s.updateCaptured(i, { producer: e.target.value })} />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--ws-space-4)' }}>
+                  <div className="ws-form-2col">
                     <Select label="Colour" options={COLOUR_OPTIONS} value={r.colour} onChange={(e) => s.updateCaptured(i, { colour: e.target.value as typeof r.colour })} />
                     <TextField label="Vintage" placeholder="2015" value={String(r.vintage ?? '')} onChange={(e) => s.updateCaptured(i, { vintage: e.target.value })} />
                   </div>
                   <TextField label="Region" value={r.region} onChange={(e) => s.updateCaptured(i, { region: e.target.value })} />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--ws-space-4)' }}>
+                  <div className="ws-form-2col">
                     <TextField label="Cellar location" placeholder="Rack 4 · Bin 12" value={r.location} onChange={(e) => s.updateCaptured(i, { location: e.target.value })} />
                     <TextField label="Value per bottle (€)" placeholder="120" value={String(r.unit ?? '')} onChange={(e) => s.updateCaptured(i, { unit: e.target.value })} />
                   </div>

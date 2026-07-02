@@ -1328,6 +1328,8 @@
   overflow: hidden;
 }
 .ws-barchart__fill {
+  /* Rendered as a span; must be block or its width/height are ignored. */
+  display: block;
   height: 100%;
   border-radius: 999px;
   background: var(--ws-bordeaux);

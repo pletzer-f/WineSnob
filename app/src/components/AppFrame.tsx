@@ -110,7 +110,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
   )
 
   return (
-    <div style={{ height: '100vh', background: 'var(--ws-bg)', fontFamily: 'var(--ws-font-ui)', color: 'var(--ws-ink)' }}>
+    <div className="ws-app-root" style={{ background: 'var(--ws-bg)', fontFamily: 'var(--ws-font-ui)', color: 'var(--ws-ink)' }}>
       <AppShell
         sidebar={<SideNav items={NAV_ITEMS} activeKey={navActive} onSelect={go} header={<Logo variant="stacked" />} footer={railFooter} />}
         tabbar={<TabBar items={TAB_ITEMS} activeKey={navActive} onSelect={go} />}

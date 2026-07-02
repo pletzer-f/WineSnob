@@ -22,6 +22,120 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* App frame fills the dynamic viewport (iOS Safari's collapsing URL bar). */
+.ws-app-root {
+  height: 100vh;
+}
+@supports (height: 100dvh) {
+  .ws-app-root {
+    height: 100dvh;
+  }
+}
+
+/* ---- motion: quiet, brief, and off when the user asks ---- */
+@media (prefers-reduced-motion: no-preference) {
+  /* Each screen eases in as you navigate. */
+  .ws-screen-enter {
+    animation: ws-screen-in 0.24s ease;
+  }
+  /* Staggered arrival for hero pages (landing, onboarding). */
+  .ws-stagger > * {
+    animation: ws-screen-in 0.4s ease backwards;
+  }
+  .ws-stagger > *:nth-child(2) {
+    animation-delay: 0.06s;
+  }
+  .ws-stagger > *:nth-child(3) {
+    animation-delay: 0.12s;
+  }
+  .ws-stagger > *:nth-child(4) {
+    animation-delay: 0.18s;
+  }
+  .ws-stagger > *:nth-child(n + 5) {
+    animation-delay: 0.24s;
+  }
+  /* Gentle press feedback on tappable surfaces. */
+  .ws-btn,
+  .ws-bottle,
+  .ws-import,
+  .ws-chip,
+  .ws-tab,
+  .ws-card-btn,
+  .ws-hairline-btn {
+    transition-property: background, color, border-color, opacity, transform;
+    transition-duration: 0.15s;
+    transition-timing-function: ease;
+  }
+  .ws-btn:active:not(:disabled),
+  .ws-import:active,
+  .ws-card-btn:active,
+  .ws-hairline-btn:active {
+    transform: scale(0.982);
+  }
+  button.ws-bottle:active,
+  .ws-cellar-grid > div:active .ws-bottle {
+    transform: scale(0.988);
+  }
+  .ws-row:active,
+  .ws-tab:active,
+  .ws-chip:active,
+  .ws-fade:active {
+    opacity: 0.72;
+  }
+  /* Modals: sheet slide on mobile is defined below; desktop gets a soft pop. */
+  .ws-modal__scrim {
+    animation: ws-fade-in 0.2s ease;
+  }
+  .ws-modal {
+    animation: ws-modal-pop 0.2s ease;
+  }
+}
+@keyframes ws-screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ws-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ws-modal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.985) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ws-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* Two-line clamp for wine names in tight rows. */
+.ws-clamp2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+}
+
 /* ---- interaction helpers (replace the prototype's inline style-hover) ---- */
 .ws-lift {
   transition: transform 0.16s ease, border-color 0.16s ease;
@@ -151,6 +265,83 @@ body {
   flex: 1;
 }
 
+/* Onboarding: collecting-style choices, three across on desktop. */
+.ws-goal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--ws-space-3);
+}
+/* Onboarding: primary step actions span the panel. */
+.ws-ob-cta .ws-btn {
+  width: 100%;
+}
+
+/* Stats: readiness summary, one card with three columns on desktop. */
+.ws-readiness {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--ws-space-5);
+}
+.ws-readiness__item {
+  display: grid;
+  grid-template-areas: 'label' 'num' 'hint';
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+.ws-readiness__label {
+  grid-area: label;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ws-muted);
+}
+.ws-readiness__num {
+  grid-area: num;
+  font-family: var(--ws-font-display);
+  font-size: 30px;
+  line-height: 1;
+  color: var(--ws-ink);
+}
+.ws-readiness__hint {
+  grid-area: hint;
+  font-size: 13px;
+  color: var(--ws-muted);
+}
+
+/* Stats: the two summary cards beside the value hero. */
+.ws-stat-duo {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: var(--ws-space-4);
+  min-width: 0;
+}
+
+/* Stats: "drinking soonest" rows, name beside its window on desktop. */
+.ws-window-row {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: var(--ws-space-4);
+  align-items: center;
+}
+
+/* Wishlist rows: name block, target price, remove control. */
+.ws-wish-main {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ws-space-4);
+}
+.ws-wish-price {
+  flex: none;
+  text-align: right;
+}
+
 @media (max-width: 767.98px) {
   .ws-header {
     padding: var(--ws-space-5) max(var(--ws-space-5), env(safe-area-inset-right))
@@ -159,9 +350,9 @@ body {
   .ws-hide-mobile {
     display: none !important;
   }
-  /* Stack the bottle-detail actions full-width for easy tapping. */
+  /* Stack the bottle-detail actions full-width, primary on top. */
   .ws-detail__actions {
-    flex-direction: column;
+    flex-direction: column-reverse;
     align-items: stretch;
   }
   .ws-detail__actions > * {
@@ -223,5 +414,157 @@ body {
   }
   .ws-modal-actions > * {
     flex: 1 1 auto;
+  }
+
+  /* ---- bottom sheets: modals rise from the bottom edge like native iOS ---- */
+  .ws-modal__scrim {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .ws-modal {
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - 40px);
+    border-radius: 18px 18px 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 10px);
+    box-sizing: border-box;
+  }
+  .ws-modal::before {
+    /* grabber */
+    content: '';
+    display: block;
+    width: 40px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--ws-stone);
+    margin: 10px auto 0;
+  }
+  /* Action rows stay reachable while the sheet body scrolls. */
+  .ws-modal .ws-modal__footer,
+  .ws-modal .ws-modal-actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--ws-surface);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .ws-modal {
+      animation: ws-sheet-up 0.3s cubic-bezier(0.32, 0.72, 0.24, 1);
+    }
+  }
+
+  /* Header: smaller wordmark + tighter switcher so the cellar name shows in full. */
+  .ws-header {
+    gap: var(--ws-space-3);
+  }
+  .ws-header .ws-logo--horizontal .ws-logo__line {
+    font-size: 16px;
+  }
+  .ws-header__actions [aria-label='Switch cellar'] {
+    padding: 6px 10px !important;
+    margin-right: 0 !important;
+  }
+
+  /* Rows and reads: let wine names wrap to two lines instead of truncating. */
+  .ws-row__name,
+  .ws-review__name {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.35;
+  }
+
+  /* Onboarding: collecting-style choices stack full width. */
+  .ws-goal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Cellar log: year-in-wine reads as a 2x2 grid, not a tower of cards. */
+  .ws-log-stats {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .ws-log-stats .ws-stat {
+    min-width: 0;
+    padding: var(--ws-space-4);
+  }
+
+  /* Stats: the two summary cards sit side by side under the value hero. */
+  .ws-stat-duo {
+    grid-template-rows: none;
+    grid-template-columns: 1fr 1fr;
+  }
+  .ws-stat-duo .ws-stat {
+    min-width: 0;
+    padding: var(--ws-space-4);
+  }
+  .ws-stat-duo .ws-stat__value {
+    font-size: 24px;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  /* Stats: readiness becomes three quiet rows in one card. */
+  .ws-readiness {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .ws-readiness__item {
+    grid-template-areas: 'label num' 'hint num';
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    column-gap: var(--ws-space-4);
+    row-gap: 2px;
+    padding: 12px 0;
+  }
+  .ws-readiness__item + .ws-readiness__item {
+    border-top: 0.5px solid var(--ws-border);
+  }
+  .ws-readiness__item:first-child {
+    padding-top: 2px;
+  }
+  .ws-readiness__item:last-child {
+    padding-bottom: 2px;
+  }
+  .ws-readiness__num {
+    font-size: 26px;
+  }
+
+  /* Stats: drinking-soonest stacks the window under the name. */
+  .ws-window-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 4px 0;
+  }
+
+  /* Wishlist: target price moves under the name instead of squeezing it. */
+  .ws-wish-main {
+    flex-wrap: wrap;
+  }
+  .ws-wish-price {
+    flex: 1 1 100%;
+    text-align: left;
+    display: flex;
+    align-items: baseline;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .ws-wish-price > * {
+    margin: 0 !important;
+  }
+
+  /* Settings: wide controls (selects) drop below their description. */
+  .ws-setting {
+    flex-wrap: wrap;
+  }
+  .ws-setting__body {
+    flex: 1 1 60%;
+  }
+  .ws-setting__control:has(.ws-selectctl) {
+    flex: 1 1 100%;
   }
 }

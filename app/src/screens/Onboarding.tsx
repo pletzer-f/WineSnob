@@ -21,7 +21,7 @@ export function Onboarding() {
   const s = useStore()
   return (
     <div style={overlay} data-screen-label="Onboarding">
-      <div style={panel}>
+      <div className="ws-stagger" style={panel}>
         {s.obStep === 'auth' && <AuthStep />}
         {s.obStep === 'welcome' && <WelcomeStep />}
         {(s.obStep === 'account' || s.obStep === 'profile' || s.obStep === 'first') && <SteppedFlow />}
@@ -133,7 +133,7 @@ function WelcomeStep() {
           { n: 3, t: 'It always knows the worth', d: 'A live valuation of your whole collection, by region and vintage.' },
         ].map((row) => (
           <div key={row.n} style={{ display: 'flex', gap: 'var(--ws-space-4)', alignItems: 'flex-start' }}>
-            <span style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 999, background: 'var(--ws-cream)', color: 'var(--ws-bordeaux)', display: 'grid', placeItems: 'center', fontFamily: 'var(--ws-font-display)', fontSize: 15 }}>{row.n}</span>
+            <span style={{ flexShrink: 0, width: 30, height: 30, marginTop: -4, borderRadius: 999, background: 'var(--ws-cream)', color: 'var(--ws-bordeaux)', display: 'grid', placeItems: 'center', fontFamily: 'var(--ws-font-display)', fontSize: 15 }}>{row.n}</span>
             <div>
               <div style={{ fontSize: 15, color: 'var(--ws-ink)', fontWeight: 500 }}>{row.t}</div>
               <div style={{ fontSize: 13.5, color: 'var(--ws-muted)', lineHeight: 1.5, marginTop: 2 }}>{row.d}</div>
@@ -208,7 +208,7 @@ function SteppedFlow() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-5)' }}>
           <div>
             <h1 style={stepTitle}>Your cellar</h1>
-            <p style={stepSub}>A little about how you collect — this tailors what we surface.</p>
+            <p style={stepSub}>A little about how you collect, so we can tailor what we surface.</p>
           </div>
           <TextField label="Name your cellar" placeholder="e.g. The Cellar Under the Stairs" value={s.obProfile.cellarName} onChange={(e) => s.setObProfile({ cellarName: e.target.value })} />
           <div>
@@ -217,7 +217,7 @@ function SteppedFlow() {
           </div>
           <div>
             <div style={miniLabel}>Your collecting style</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--ws-space-3)' }}>
+            <div className="ws-goal-grid">
               <button onClick={() => s.setObProfile({ goal: 'drink' })} style={goalStyle(s.obProfile.goal === 'drink')}>
                 <div style={goalTitle}>Drink soon</div>
                 <div style={goalDesc}>Bottles I want to open and enjoy.</div>
@@ -239,7 +239,7 @@ function SteppedFlow() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-5)' }}>
           <div>
             <h1 style={stepTitle}>Add your first bottle</h1>
-            <p style={stepSub}>However you like — you can always add more later.</p>
+            <p style={stepSub}>However you like. You can always add more later.</p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-3)' }}>
             <MethodCard title="Snap a label" desc="Point your camera and we read it for you." onClick={() => s.finishOnboarding('snap')} glyph="◉" />
@@ -253,7 +253,7 @@ function SteppedFlow() {
       )}
 
       {hasNext && (
-        <div style={{ marginTop: 'auto', paddingTop: 'var(--ws-space-4)' }}>
+        <div className="ws-ob-cta" style={{ marginTop: 'auto', paddingTop: 'var(--ws-space-4)' }}>
           <Button variant="primary" onClick={s.obNext}>
             Continue
           </Button>

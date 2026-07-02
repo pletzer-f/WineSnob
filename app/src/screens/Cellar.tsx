@@ -154,7 +154,7 @@ export function Cellar() {
         <div style={{ padding: 'var(--ws-space-7) 0' }}>
           <EmptyState
             title="A cellar with no wine in it"
-            message="Bold choice. Snap a label, type one in, or import a list — your collection starts with a single bottle."
+            message="Bold choice. Snap a label, type one in, or import a list. Your collection starts with a single bottle."
             action={
               <Button variant="primary" onClick={() => s.go('add')}>
                 Add your first bottle

@@ -36,7 +36,7 @@ export function EditBottle() {
   const formatOptions = FORMAT_DEFS.map((d) => ({ label: `${d.label} · ${fmtLitres(d.litres)}`, value: d.key }))
   const formatHint =
     fFmt.equiv === 1
-      ? 'The 750 ml bottle — the standard.'
+      ? 'The 750 ml bottle. The standard.'
       : `${fmtLitres(fFmt.litres)} · counts as ${fFmt.equiv} standard bottle${fFmt.equiv === 1 ? '' : 's'}` +
         (fFmt.age > 1 ? ' · ages more slowly' : fFmt.age < 1 ? ' · ages faster' : '')
   const valueHint = s.settings.autoValue ? `Auto-updated ${s.settings.priceCadence === 'monthly' ? 'monthly' : 'quarterly'}` : 'Set manually'
@@ -62,7 +62,7 @@ export function EditBottle() {
 
       <FormSection title="Classification">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-4)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--ws-space-4)' }}>
+          <div className="ws-form-2col">
             <Select label="Colour" options={COLOUR_OPTIONS} value={form.colour} onChange={(e) => s.setField('colour', e.target.value as typeof form.colour)} />
             <TextField label="Vintage" placeholder="2015" value={form.vintage} onChange={(e) => s.setField('vintage', e.target.value)} hint="NV for non-vintage" error={s.errors.vintage} />
           </div>
@@ -76,11 +76,11 @@ export function EditBottle() {
             <div style={miniLabel}>Bottles held</div>
             <NumberStepper value={form.quantity} min={0} max={999} onChange={(v) => s.setField('quantity', v)} label="Bottles held" />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--ws-space-4)' }}>
+          <div className="ws-form-2col">
             <TextField label="Price paid / bottle (€)" placeholder="90" value={form.paid} onChange={(e) => s.setField('paid', e.target.value)} hint="What you actually paid" />
             <TextField label="Current value / bottle (€)" placeholder="120" value={form.unit} onChange={(e) => s.setField('unit', e.target.value)} hint={valueHint} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--ws-space-4)' }}>
+          <div className="ws-form-2col">
             <Select label="Bottle size" options={formatOptions} value={form.format} onChange={(e) => s.setField('format', e.target.value as typeof form.format)} hint={formatHint} />
             <Select label="Drink window" options={STATUS_OPTIONS} value={form.status} onChange={(e) => s.setField('status', e.target.value as typeof form.status)} hint="When the bottle is at its best." />
           </div>

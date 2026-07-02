@@ -128,9 +128,9 @@ export function Stats() {
               </>
             )}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--ws-muted)' }}>Estimated market value, last ten quarters. Hover the line for each quarter.</div>
+          <div style={{ fontSize: 12, color: 'var(--ws-muted)' }}>Estimated market value, last ten quarters. Touch or hover the line to explore.</div>
         </div>
-        <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: 'var(--ws-space-4)', minWidth: 0 }}>
+        <div className="ws-stat-duo">
           <StatCard label="Bottles" value={model.totalBottlesNum} hint={`${cellar.length} distinct wines`} />
           <StatCard label="Most-valued region" value={model.topRegionEntry[0] as string} hint={`${money(model.topRegionEntry[1] as number)} held`} />
         </div>
@@ -162,15 +162,15 @@ export function Stats() {
       {/* readiness */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-3)' }}>
         <SectionHeader title="Drink-window readiness" />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--ws-space-4)' }}>
+        <div className="ws-readiness" style={card}>
           {model.readiness.map((r) => (
-            <div key={r.label} style={{ ...card, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 7, height: 7, borderRadius: 999, background: r.dot }} />
-                <span style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ws-muted)' }}>{r.label}</span>
+            <div key={r.label} className="ws-readiness__item">
+              <div className="ws-readiness__label">
+                <span style={{ width: 7, height: 7, borderRadius: 999, background: r.dot, flex: 'none' }} />
+                {r.label}
               </div>
-              <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 30, lineHeight: 1, color: 'var(--ws-ink)' }}>{r.value}</div>
-              <div style={{ fontSize: 13, color: 'var(--ws-muted)' }}>{r.hint}</div>
+              <div className="ws-readiness__num">{r.value}</div>
+              <div className="ws-readiness__hint">{r.hint}</div>
             </div>
           ))}
         </div>
@@ -178,9 +178,9 @@ export function Stats() {
           <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-4)', marginTop: 'var(--ws-space-2)' }}>
             <div style={{ fontSize: 13, color: 'var(--ws-muted)' }}>Drinking soonest</div>
             {model.windows.map((w) => (
-              <div key={w.name} style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 'var(--ws-space-4)', alignItems: 'center' }}>
+              <div key={w.name} className="ws-window-row">
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 16, color: 'var(--ws-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.name}</div>
+                  <div className="ws-clamp2" style={{ fontFamily: 'var(--ws-font-display)', fontSize: 16, color: 'var(--ws-ink)', lineHeight: 1.3 }}>{w.name}</div>
                   <div style={{ fontSize: 12, color: 'var(--ws-muted)' }}>{w.region}</div>
                 </div>
                 <DrinkWindow from={w.from} to={w.to} current={2026} status={w.status} />

@@ -646,7 +646,7 @@ export const useStore = create<Store>((set, get) => {
       const drinks = s.drinks.map((r) => ((r.cellarId || 'main') === id ? { ...r, cellarId: fallback } : r))
       const activeCellar = s.activeCellar === id ? fallback : s.activeCellar
       set({ cellars: remaining, bottles, drinks, activeCellar })
-      get().flash(`Cellar removed — its bottles moved to ${remaining[0].name}`)
+      get().flash(`Cellar removed. Its bottles moved to ${remaining[0].name}`)
       get()._persist()
     },
 
@@ -970,7 +970,7 @@ export const useStore = create<Store>((set, get) => {
         vintage: e.vintage != null ? String(e.vintage) : '',
         targetPrice: null,
         priority: 'high',
-        note: 'Loved it — buy again.',
+        note: 'Loved it. Buy again.',
       }
       set({ wishlist: [rec, ...s.wishlist] })
       get().flash(`${e.name} added to your wishlist`, 2600)

@@ -82,7 +82,7 @@ export function CellarLog() {
       {drinks.length === 0 ? (
         <EmptyState
           title="No pours logged yet."
-          message="Every time you open a bottle, mark it drunk and it lands here — with the occasion, the note and how it drank."
+          message="Every time you open a bottle, mark it drunk and it lands here, with the occasion, the note and how it drank."
         />
       ) : (
         <>
@@ -122,6 +122,9 @@ export function CellarLog() {
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                           <span style={{ fontFamily: 'var(--ws-font-display)', fontSize: 17, color: 'var(--ws-ink)' }}>{e.name}</span>
                           <span style={{ fontFamily: 'var(--ws-font-display)', fontSize: 14, color: 'var(--ws-muted)' }}>{String(e.vintage)}</span>
+                          {e.buyAgain && (
+                            <span className="ws-log-buyagain" style={{ fontSize: 11, color: 'var(--ws-bordeaux)', whiteSpace: 'nowrap', marginLeft: 'auto' }}>+ Buy again</span>
+                          )}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px 12px', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 12.5, color: 'var(--ws-muted)' }}>
@@ -131,9 +134,6 @@ export function CellarLog() {
                           <Rating value={e.rating || 0} />
                         </div>
                         {e.note && <div style={{ fontSize: 14, color: 'var(--ws-ink)', opacity: 0.82, fontStyle: 'italic', lineHeight: 1.55, maxWidth: '62ch' }}>{e.note}</div>}
-                      </div>
-                      <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                        {e.buyAgain && <span className="ws-log-buyagain" style={{ fontSize: 11, color: 'var(--ws-bordeaux)', whiteSpace: 'nowrap' }}>+ Buy again</span>}
                       </div>
                     </div>
                   ))}

@@ -23,7 +23,7 @@ export function Landing({ onContinue }: { onContinue: () => void }) {
 
   return (
     <div style={overlay}>
-      <div style={panel}>
+      <div className="ws-stagger" style={panel}>
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <Logo variant="stacked" />
         </div>
@@ -40,7 +40,7 @@ export function Landing({ onContinue }: { onContinue: () => void }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-4)', background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-lg)', boxShadow: 'var(--ws-shadow-sm)', padding: 'var(--ws-space-5)' }}>
           {VALUE_PROPS.map((p, i) => (
             <div key={i} style={{ display: 'flex', gap: 'var(--ws-space-4)', alignItems: 'flex-start' }}>
-              <span style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 999, background: 'var(--ws-cream)', color: 'var(--ws-bordeaux)', display: 'grid', placeItems: 'center', fontFamily: 'var(--ws-font-display)', fontSize: 15 }}>{i + 1}</span>
+              <span style={{ flexShrink: 0, width: 30, height: 30, marginTop: -4, borderRadius: 999, background: 'var(--ws-cream)', color: 'var(--ws-bordeaux)', display: 'grid', placeItems: 'center', fontFamily: 'var(--ws-font-display)', fontSize: 15 }}>{i + 1}</span>
               <div>
                 <div style={{ fontSize: 15, color: 'var(--ws-ink)', fontWeight: 500 }}>{p.t}</div>
                 <div style={{ fontSize: 13.5, color: 'var(--ws-muted)', lineHeight: 1.5, marginTop: 2 }}>{p.d}</div>

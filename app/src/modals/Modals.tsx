@@ -42,7 +42,7 @@ const OCCASION_OPTIONS = [
 ]
 
 const WISH_PRIORITY_OPTIONS = [
-  { label: 'Grail — must-have', value: 'grail' },
+  { label: 'Grail, must-have', value: 'grail' },
   { label: 'High priority', value: 'high' },
   { label: 'Someday', value: 'medium' },
 ]
@@ -478,7 +478,7 @@ function SignOut() {
   return (
     <Modal open={s.signOutOpen} title="Sign out" onClose={s.closeSignOut}>
       <div style={{ fontSize: 15, color: 'var(--ws-ink)', lineHeight: 1.55, margin: '-4px 0 18px' }}>
-        Sign out of WineSnob? Your cellar stays safe — you can sign back in any time.
+        Sign out of WineSnob? Your cellar stays safe and you can sign back in any time.
       </div>
       <div style={{ display: 'flex', gap: 'var(--ws-space-3)', alignItems: 'center' }}>
         <div style={{ flex: 1 }} />

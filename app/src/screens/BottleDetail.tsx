@@ -58,9 +58,9 @@ export function BottleDetailScreen() {
       held: `${selected.quantity} × ${sd.label.toLowerCase()}`,
       ageNote:
         sd.age > 1
-          ? `Large formats age more slowly — this ${sd.label.toLowerCase()}'s window runs to ${dwin.to}, well past the ${selected.drinkTo} of a standard bottle.`
+          ? `Large formats age more slowly. This ${sd.label.toLowerCase()}'s window runs to ${dwin.to}, well past the ${selected.drinkTo} of a standard bottle.`
           : sd.age < 1
-            ? 'Small formats age faster — enjoy this one earlier than a full bottle.'
+            ? 'Small formats age faster. Enjoy this one earlier than a full bottle.'
             : '',
     }
 
@@ -96,30 +96,6 @@ export function BottleDetailScreen() {
         <span style={{ fontSize: 17, lineHeight: 1 }}>←</span> Back to cellar
       </button>
 
-      {/* format strip */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--ws-space-4)', flexWrap: 'wrap', padding: 'var(--ws-space-4) var(--ws-space-5)', background: 'var(--ws-cream)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-md)' }}>
-        <span style={{ flexShrink: 0, color: 'var(--ws-bordeaux)' }}>
-          <svg width="26" height="30" viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round">
-            <path d="M10 2h6v4.5c0 1.2 .4 1.8 1.2 2.8C18.8 11 20 12.6 20 16v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V16c0-3.4 1.2-5 2.8-6.7C9.6 8.3 10 7.7 10 6.5V2z" />
-          </svg>
-        </span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 17, color: 'var(--ws-ink)', lineHeight: 1.1 }}>{fmt.label}</div>
-          <div style={{ fontSize: 13, color: 'var(--ws-muted)', marginTop: 2 }}>
-            {fmt.litres} — {fmt.equivText}
-          </div>
-        </div>
-        <span style={{ flexShrink: 0, fontSize: 12.5, color: 'var(--ws-muted)' }}>{fmt.held}</span>
-      </div>
-
-      {/* large-format ageing note */}
-      {fmt.ageNote && (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: 'var(--ws-space-4) var(--ws-space-5)', background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderLeft: '2px solid var(--ws-bordeaux)', borderRadius: 'var(--ws-radius-md)' }}>
-          <span style={{ flexShrink: 0, color: 'var(--ws-bordeaux)', fontSize: 15, lineHeight: 1.4 }}>◷</span>
-          <div style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ws-ink)' }}>{fmt.ageNote}</div>
-        </div>
-      )}
-
       <BottleDetailCard
         name={selected.name}
         producer={selected.producer}
@@ -148,6 +124,30 @@ export function BottleDetailScreen() {
           </>
         }
       />
+
+      {/* format strip */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--ws-space-4)', flexWrap: 'wrap', padding: 'var(--ws-space-4) var(--ws-space-5)', background: 'var(--ws-cream)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-md)' }}>
+        <span style={{ flexShrink: 0, color: 'var(--ws-bordeaux)' }}>
+          <svg width="26" height="30" viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round">
+            <path d="M10 2h6v4.5c0 1.2 .4 1.8 1.2 2.8C18.8 11 20 12.6 20 16v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V16c0-3.4 1.2-5 2.8-6.7C9.6 8.3 10 7.7 10 6.5V2z" />
+          </svg>
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 17, color: 'var(--ws-ink)', lineHeight: 1.1 }}>{fmt.label}</div>
+          <div style={{ fontSize: 13, color: 'var(--ws-muted)', marginTop: 2 }}>
+            {fmt.litres} · {fmt.equivText}
+          </div>
+        </div>
+        <span style={{ flexShrink: 0, fontSize: 12.5, color: 'var(--ws-muted)' }}>{fmt.held}</span>
+      </div>
+
+      {/* large-format ageing note */}
+      {fmt.ageNote && (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: 'var(--ws-space-4) var(--ws-space-5)', background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderLeft: '2px solid var(--ws-bordeaux)', borderRadius: 'var(--ws-radius-md)' }}>
+          <span style={{ flexShrink: 0, color: 'var(--ws-bordeaux)', fontSize: 15, lineHeight: 1.4 }}>◷</span>
+          <div style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ws-ink)' }}>{fmt.ageNote}</div>
+        </div>
+      )}
 
       {/* cost basis */}
       {cost && (

@@ -66,7 +66,9 @@ export function App() {
   return (
     <>
       <AppFrame>
-        <ScreenView screen={screen} />
+        <div key={screen} className="ws-screen-enter" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <ScreenView screen={screen} />
+        </div>
       </AppFrame>
       <Modals />
       <Toaster />

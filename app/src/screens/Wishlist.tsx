@@ -97,8 +97,8 @@ export function Wishlist() {
           <div style={{ background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-lg)', boxShadow: 'var(--ws-shadow-sm)', padding: '2px 18px' }}>
             {wishlist.map((w) => (
               <div key={w.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--ws-space-4)', padding: 'var(--ws-space-4) 0', borderTop: '0.5px solid var(--ws-border)' }}>
-                <div className="ws-fade" onClick={() => s.openEditWish(w.id)} style={{ flex: 1, minWidth: 0, cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 'var(--ws-space-4)' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="ws-fade ws-wish-main" onClick={() => s.openEditWish(w.id)}>
+                  <div style={{ flex: 1, minWidth: '55%' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <span style={{ fontFamily: 'var(--ws-font-display)', fontSize: 18, color: 'var(--ws-ink)' }}>{w.name}</span>
                       <Tag tone={w.tone}>{w.priorityLabel}</Tag>
@@ -106,7 +106,7 @@ export function Wishlist() {
                     <div style={{ fontSize: 13, color: 'var(--ws-muted)', marginTop: 4 }}>{w.meta}</div>
                     {w.hasNote && <div style={{ fontSize: 14, color: 'var(--ws-ink)', opacity: 0.78, marginTop: 8, fontStyle: 'italic', lineHeight: 1.5 }}>{w.note}</div>}
                   </div>
-                  <div style={{ flex: 'none', textAlign: 'right' }}>
+                  <div className="ws-wish-price">
                     <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 17, color: 'var(--ws-ink)' }}>{w.target}</div>
                     <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ws-muted)', marginTop: 3 }}>target price</div>
                   </div>
@@ -131,7 +131,7 @@ export function Wishlist() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-3)' }}>
           <SectionHeader title="Buy again" count={buyAgain.length === 1 ? '1 wine' : `${buyAgain.length} wines`} />
           <div style={{ fontSize: 13.5, color: 'var(--ws-muted)', margin: '-6px 0 2px', maxWidth: '60ch' }}>
-            Wines you finished, loved, or flagged — one tap moves them onto your hunt list.
+            Wines you finished, loved, or flagged. One tap moves them onto your hunt list.
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 'var(--ws-space-4)' }}>
             {buyAgain.map((b) => (
