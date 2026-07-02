@@ -1,13 +1,24 @@
 import { fmtDef } from './formats'
 import type { Bottle } from './types'
 
+/** The per-standard-bottle price used for valuation: the live market price
+ * when a price source has valued this bottle, otherwise the recorded value. */
+export function unitPrice(b: Bottle): number {
+  return b.marketUnit != null && b.marketUnit > 0 ? b.marketUnit : b.unit
+}
+
+/** True when this bottle carries a market price from a connected price source. */
+export function hasMarketValue(b: Bottle): boolean {
+  return b.marketUnit != null && b.marketUnit > 0
+}
+
 /**
  * Value of a holding, folding in the format's volume and collector premium.
- * value = quantity × unit(per standard bottle) × equiv × premium
+ * value = quantity × price(per standard bottle) × equiv × premium
  */
 export function bottleValue(b: Bottle): number {
   const d = fmtDef(b.format || 'standard')
-  return b.quantity * b.unit * d.equiv * d.premium
+  return b.quantity * unitPrice(b) * d.equiv * d.premium
 }
 
 /** Bottle-equivalents held (a magnum counts as two standards). */

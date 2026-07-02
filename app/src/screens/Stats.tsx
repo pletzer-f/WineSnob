@@ -75,6 +75,14 @@ export function Stats() {
     if (idx !== hover) setHover(idx)
   }
 
+  const marketed = cellar.filter((b) => b.marketSource)
+  const priced = marketed.length > 0
+  const valSource = marketed[0]?.marketSource || 'Wine-Searcher'
+  const valAsOf = marketed.map((b) => b.marketAsOf).filter(Boolean).sort().pop()
+  const valCaption = priced
+    ? `Live market value from ${valSource}${valAsOf ? `, valued ${valAsOf}` : ''}. The line is an illustrative trend.`
+    : 'Your recorded values. Connect a price source in Settings for live market pricing.'
+
   return (
     <div className="ws-mobile-pad" style={page}>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 'var(--ws-space-4)', flexWrap: 'wrap' }}>
@@ -100,9 +108,9 @@ export function Stats() {
               <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ws-muted)', marginBottom: 6 }}>Cellar value</div>
               <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 40, lineHeight: 1, color: 'var(--ws-ink)' }}>{money(model.totalValueNum)}</div>
             </div>
-            <div style={{ fontSize: 13, color: 'var(--ws-green)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--ws-green)' }} />
-              +8.4% this year
+            <div style={{ fontSize: 12, color: priced ? 'var(--ws-bordeaux)' : 'var(--ws-muted)', display: 'inline-flex', alignItems: 'center', gap: 6, letterSpacing: '0.04em' }}>
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: priced ? 'var(--ws-bordeaux)' : 'var(--ws-border-strong)' }} />
+              {priced ? `${valSource} · as of ${valAsOf || 'today'}` : 'Your recorded value'}
             </div>
           </div>
           <div
@@ -128,7 +136,7 @@ export function Stats() {
               </>
             )}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--ws-muted)' }}>Estimated market value, last ten quarters. Touch or hover the line to explore.</div>
+          <div style={{ fontSize: 12, color: 'var(--ws-muted)' }}>{valCaption}</div>
         </div>
         <div className="ws-stat-duo">
           <StatCard label="Bottles" value={model.totalBottlesNum} hint={`${cellar.length} distinct wines`} />

@@ -31,6 +31,58 @@ export async function parseImport(file: File): Promise<RawRead[]> {
   return caseBatch()
 }
 
+// ---- cellar valuation ----
+
+export interface ValuationRow {
+  id: string
+  unit: number
+  low?: number
+  high?: number
+  source: string
+  asOf: string
+  read?: string
+}
+
+export interface ValuationResult {
+  configured: boolean
+  provider: string
+  asOf?: string
+  matched?: number
+  total?: number
+  results: ValuationRow[]
+}
+
+export interface ValuationInput {
+  id: string
+  name: string
+  producer: string
+  vintage: string
+  region: string
+  format: string
+}
+
+/** Fetch live market prices for a set of bottles. Returns configured:false
+ * when no price source is connected (the app then shows recorded values). */
+export async function valueCellar(bottles: ValuationInput[], currency: string): Promise<ValuationResult> {
+  if (!hasSupabase) return { configured: false, provider: 'Wine-Searcher', results: [] }
+  // Chunk large cellars so each function call stays fast and within limits.
+  const chunks: ValuationInput[][] = []
+  for (let i = 0; i < bottles.length; i += 60) chunks.push(bottles.slice(i, i + 60))
+  const out: ValuationResult = { configured: true, provider: 'Wine-Searcher', results: [] }
+  for (const chunk of chunks) {
+    const { data, error } = await supabase.functions.invoke('value-cellar', { body: { bottles: chunk, currency } })
+    if (error) throw error
+    if (data?.error) throw new Error(data.error)
+    if (!data?.configured) return { configured: false, provider: data?.provider || 'Wine-Searcher', results: [] }
+    out.provider = data.provider || out.provider
+    out.asOf = data.asOf
+    out.results.push(...((data.results as ValuationRow[]) || []))
+  }
+  out.matched = out.results.length
+  out.total = bottles.length
+  return out
+}
+
 // ---- the sommelier ----
 
 export interface SomPick {

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { SomPick } from '@/data/ai'
+import { valueCellar, type SomPick } from '@/data/ai'
 import type {
   Account,
   Bottle,
@@ -207,6 +207,11 @@ export interface StoreState {
   somTurns: SomTurn[]
   somBusy: boolean
 
+  // valuation
+  valuationBusy: boolean
+  valuationConfigured: boolean | null
+  valuationInfo: { asOf?: string; source?: string; matched?: number; total?: number } | null
+
   // wishlist form
   wishOpen: boolean
   wishEditId: string | null
@@ -300,6 +305,9 @@ export interface StoreActions {
   somPush: (t: SomTurn) => void
   setSomBusy: (b: boolean) => void
   consumeSomSeed: () => string | null
+
+  // valuation
+  refreshValuations: () => Promise<void>
 
   // edit form
   openManual: () => void
@@ -521,6 +529,9 @@ const initialState: StoreState = {
   somSeed: null,
   somTurns: [],
   somBusy: false,
+  valuationBusy: false,
+  valuationConfigured: null,
+  valuationInfo: null,
   wishOpen: false,
   wishEditId: null,
   wishForm: emptyWishForm(),
@@ -731,6 +742,48 @@ export const useStore = create<Store>((set, get) => {
       const seed = get().somSeed
       if (seed) set({ somSeed: null })
       return seed
+    },
+
+    // ---- valuation ----
+    refreshValuations: async () => {
+      if (get().valuationBusy) return
+      const inputs = get().bottles.map((b) => ({
+        id: b.id,
+        name: b.name,
+        producer: b.producer,
+        vintage: String(b.vintage),
+        region: [b.region, b.area].filter(Boolean).join(', '),
+        format: b.format,
+      }))
+      if (inputs.length === 0) {
+        get().flash('Add a few bottles first')
+        return
+      }
+      set({ valuationBusy: true })
+      try {
+        const res = await valueCellar(inputs, get().settings.currency)
+        if (!res.configured) {
+          set({ valuationConfigured: false })
+          get().flash('Connect a price source to value your cellar')
+          return
+        }
+        const map = new Map(res.results.map((r) => [r.id, r]))
+        set((state) => ({
+          valuationConfigured: true,
+          valuationInfo: { asOf: res.asOf, source: res.provider, matched: res.matched, total: res.total },
+          bottles: state.bottles.map((b) => {
+            const r = map.get(b.id)
+            return r ? { ...b, marketUnit: r.unit, marketLow: r.low, marketHigh: r.high, marketSource: r.source, marketAsOf: r.asOf, marketRead: r.read } : b
+          }),
+        }))
+        get()._persist()
+        get().flash(res.matched ? `Valued ${res.matched} of ${res.total} wines via ${res.provider}` : 'No market matches found for your wines')
+      } catch (e) {
+        console.error('valuation', e)
+        get().flash('Could not refresh valuations just now')
+      } finally {
+        set({ valuationBusy: false })
+      }
     },
 
     // ---- edit form ----

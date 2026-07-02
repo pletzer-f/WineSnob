@@ -70,9 +70,11 @@ export function Cellar() {
         topArea = a
       }
     })
+    const marketed = cellar.filter((b) => b.marketSource)
+    const valueHint = marketed.length ? `market · ${marketed[0].marketSource}` : 'your recorded value'
     return [
       { key: 'bottles', label: 'Bottles', value: totalBottles, hint: `${cellar.length} labels` },
-      { key: 'value', label: 'Cellar value', value: money(totalValue), hint: 'estimated' },
+      { key: 'value', label: 'Cellar value', value: money(totalValue), hint: valueHint },
       { key: 'ready', label: 'Ready to drink', value: readyBottles, hint: 'in their window' },
       { key: 'regions', label: 'Regions', value: regions, hint: `${countries} countries` },
       { key: 'cellaring', label: 'Cellaring', value: cellaringBottles, hint: 'resting' },

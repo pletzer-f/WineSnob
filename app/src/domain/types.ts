@@ -65,6 +65,17 @@ export interface Bottle {
   note: string
   location?: string
   buyAgain?: boolean
+  /** Live market price per standard bottle from a price source. Preferred over
+   * `unit` for valuation when present; null until a price source is connected. */
+  marketUnit?: number
+  marketLow?: number
+  marketHigh?: number
+  /** Provider display name, e.g. "Wine-Searcher". */
+  marketSource?: string
+  /** ISO date the market price was fetched. */
+  marketAsOf?: string
+  /** One-line AI market read (trading strength, hold/drink/sell). */
+  marketRead?: string
 }
 
 export interface Drink {

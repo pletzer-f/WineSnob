@@ -21,6 +21,17 @@ export function Settings() {
   const S = s.settings
   const A = s.account
 
+  const valued = s.bottles.filter((b) => b.marketSource)
+  const connected = s.valuationConfigured === true || valued.length > 0
+  const notConnected = s.valuationConfigured === false && valued.length === 0
+  const valSource = s.valuationInfo?.source || valued[0]?.marketSource || 'Wine-Searcher'
+  const valAsOf = s.valuationInfo?.asOf || valued.map((b) => b.marketAsOf).filter(Boolean).sort().pop()
+  const valuationDesc = connected
+    ? `Priced by ${valSource}${valAsOf ? `, as of ${valAsOf}` : ''}. Refresh any time.`
+    : notConnected
+      ? 'Not connected. A price source key is needed to value at live market prices.'
+      : 'Value your cellar at live market prices from a connected price source.'
+
   return (
     <div className="ws-mobile-pad" style={page}>
       <div>
@@ -46,10 +57,23 @@ export function Settings() {
         <SettingsRow label="Weekly cellar digest" description="A Sunday summary of value and what’s ready" control={<Switch checked={S.weekly} onChange={(c) => s.toggleSetting('weekly', c)} label="Weekly cellar digest" />} />
       </Group>
 
+      {/* valuation */}
+      <Group title="Valuation">
+        <SettingsRow
+          label="Market pricing"
+          description={valuationDesc}
+          control={
+            <Button variant={connected ? 'secondary' : 'primary'} onClick={s.refreshValuations} disabled={s.valuationBusy}>
+              {s.valuationBusy ? 'Valuing…' : connected ? 'Refresh now' : 'Value my cellar'}
+            </Button>
+          }
+        />
+        <SettingsRow label="Auto-update valuations" description="Refresh automatically once a price source is connected" control={<Switch checked={S.autoValue} onChange={(c) => s.toggleSetting('autoValue', c)} label="Auto-update valuations" />} />
+        <SettingsRow label="Update frequency" description="How often valuations refresh when auto-update is on" control={<div style={{ minWidth: 150 }}><Select options={CADENCE_OPTIONS} value={S.priceCadence} onChange={(e) => s.setCadence(e.target.value as PriceCadence)} /></div>} />
+      </Group>
+
       {/* cellar */}
       <Group title="Cellar">
-        <SettingsRow label="Auto-update valuations" description="Let the AI refresh market values across your cellar" control={<Switch checked={S.autoValue} onChange={(c) => s.toggleSetting('autoValue', c)} label="Auto-update valuations" />} />
-        <SettingsRow label="Update frequency" description="How often valuations are refreshed" control={<div style={{ minWidth: 150 }}><Select options={CADENCE_OPTIONS} value={S.priceCadence} onChange={(e) => s.setCadence(e.target.value as PriceCadence)} /></div>} />
         <SettingsRow label="Currency" description="Used for all valuations" control={<div style={{ minWidth: 150 }}><Select options={CURRENCY_OPTIONS} value={S.currency} onChange={(e) => s.setCurrency(e.target.value as Currency)} /></div>} />
         <SettingsRow label="Default view" description="How the cellar opens" control={<div style={{ minWidth: 150 }}><Select options={VIEW_OPTIONS} value={S.defaultView} onChange={(e) => s.setDefaultView(e.target.value as ViewMode)} /></div>} />
       </Group>

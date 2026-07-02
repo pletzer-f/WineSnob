@@ -31,7 +31,7 @@ export function BottleDetailScreen() {
         now: money(Math.round(nowPer)),
         up: delta >= 0,
         deltaText: `${delta >= 0 ? '+' : '−'}${money(Math.abs(Math.round(delta)))} (${delta >= 0 ? '+' : '−'}${Math.abs(pct)}%)`,
-        cadence: s.settings.autoValue ? `Refreshed ${s.settings.priceCadence}` : 'Set manually',
+        cadence: selected.marketSource ? `${selected.marketSource}${selected.marketAsOf ? ` · ${selected.marketAsOf}` : ''}` : 'Your recorded value',
       }
     }
 
@@ -165,6 +165,16 @@ export function BottleDetailScreen() {
             <Tag tone={cost.up ? 'ready' : 'accent'}>{cost.deltaText}</Tag>
             <span style={{ fontSize: 11, color: 'var(--ws-muted)' }}>{cost.cadence} · per bottle</span>
           </div>
+        </div>
+      )}
+
+      {/* market read */}
+      {selected.marketRead && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 'var(--ws-space-4) var(--ws-space-5)', background: 'var(--ws-cream)', border: '0.5px solid var(--ws-border)', borderLeft: '2px solid var(--ws-bordeaux)', borderRadius: 'var(--ws-radius-md)' }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.13em', textTransform: 'uppercase', color: 'var(--ws-bordeaux)' }}>
+            Market read{selected.marketSource ? ` · ${selected.marketSource}` : ''}
+          </div>
+          <div style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--ws-ink)' }}>{selected.marketRead}</div>
         </div>
       )}
 
