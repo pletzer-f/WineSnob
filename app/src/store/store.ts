@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { SomPick } from '@/data/ai'
 import type {
   Account,
   Bottle,
@@ -106,6 +107,17 @@ export interface CollForm {
   error?: boolean
 }
 
+export interface SomTurn {
+  role: 'user' | 'sommelier'
+  text: string
+  image?: string | null
+  picks?: SomPick[]
+  quickReplies?: string[]
+  /** The raw structured JSON the model produced, replayed on later turns. */
+  raw?: string
+  error?: boolean
+}
+
 export interface DrinkForm {
   date: string
   occasion: OccasionKey
@@ -189,9 +201,11 @@ export interface StoreState {
   form: EditForm
   errors: EditErrors
 
-  // recommender
-  recommendOpen: boolean
-  occasion: string
+  // sommelier
+  somOpen: boolean
+  somSeed: string | null
+  somTurns: SomTurn[]
+  somBusy: boolean
 
   // wishlist form
   wishOpen: boolean
@@ -279,10 +293,13 @@ export interface StoreActions {
   toggleLogStat: (key: string, checked: boolean) => void
   setMeasure: (m: Measure) => void
 
-  // recommender
-  openRecommend: () => void
-  closeRecommend: () => void
-  setOccasion: (key: string) => void
+  // sommelier
+  openSommelier: (seed?: string) => void
+  closeSommelier: () => void
+  resetSommelier: () => void
+  somPush: (t: SomTurn) => void
+  setSomBusy: (b: boolean) => void
+  consumeSomSeed: () => string | null
 
   // edit form
   openManual: () => void
@@ -500,8 +517,10 @@ const initialState: StoreState = {
   editFrom: 'cellar',
   form: blankForm(),
   errors: {},
-  recommendOpen: false,
-  occasion: 'dinner',
+  somOpen: false,
+  somSeed: null,
+  somTurns: [],
+  somBusy: false,
   wishOpen: false,
   wishEditId: null,
   wishForm: emptyWishForm(),
@@ -702,10 +721,17 @@ export const useStore = create<Store>((set, get) => {
       get()._persist()
     },
 
-    // ---- recommender ----
-    openRecommend: () => set({ recommendOpen: true }),
-    closeRecommend: () => set({ recommendOpen: false }),
-    setOccasion: (key) => set({ occasion: key }),
+    // ---- sommelier ----
+    openSommelier: (seed) => set({ somOpen: true, somSeed: seed || null }),
+    closeSommelier: () => set({ somOpen: false }),
+    resetSommelier: () => set({ somTurns: [], somBusy: false, somSeed: null }),
+    somPush: (t) => set((s) => ({ somTurns: [...s.somTurns, t] })),
+    setSomBusy: (b) => set({ somBusy: b }),
+    consumeSomSeed: () => {
+      const seed = get().somSeed
+      if (seed) set({ somSeed: null })
+      return seed
+    },
 
     // ---- edit form ----
     openManual: () => set({ screen: 'edit', editId: null, editFrom: 'add', form: blankForm(), errors: {} }),

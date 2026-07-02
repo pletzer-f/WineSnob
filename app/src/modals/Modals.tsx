@@ -2,8 +2,6 @@ import { useMemo } from 'react'
 import { Modal, Button, TextField, TextArea, Select, Switch } from 'winesnob-design-system'
 import { useStore } from '@/store/store'
 import { scopedBottles } from '@/store/selectors'
-import { OCCASIONS } from '@/domain/occasions'
-import { bottleValue } from '@/domain/valuation'
 import { todayISO } from '@/lib/date'
 import { useMoney } from '@/lib/useMoney'
 import { hasSupabase, supabase } from '@/lib/supabase'
@@ -54,7 +52,6 @@ export function Modals() {
       <LogStatsPicker />
       <CellarSwitch />
       <ManageCellars />
-      <Recommend />
       <CollectionEditor />
       <AddToCollection />
       <WishEditor />
@@ -187,77 +184,6 @@ function ManageCellars() {
           </button>
         )}
       </div>
-    </Modal>
-  )
-}
-
-function Recommend() {
-  const s = useStore()
-  const money = useMoney()
-  const cellar = useMemo(() => scopedBottles(s), [s.bottles, s.activeCellar])
-  const occKey = s.occasion || 'dinner'
-  const occDef = OCCASIONS.find((o) => o.key === occKey) || OCCASIONS[0]
-  const recs = cellar
-    .filter(occDef.match)
-    .slice()
-    .sort((a, b) => occDef.rank(b) - occDef.rank(a))
-    .slice(0, 3)
-
-  return (
-    <Modal open={s.recommendOpen} title="Recommend a bottle" onClose={s.closeRecommend}>
-      <div style={{ fontSize: 14, color: 'var(--ws-muted)', margin: '-4px 0 14px' }}>Tell us the occasion and we’ll pull a few from your own cellar.</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 'var(--ws-space-5)' }}>
-        {OCCASIONS.map((o) => {
-          const active = o.key === occKey
-          return (
-            <button
-              key={o.key}
-              onClick={() => s.setOccasion(o.key)}
-              style={{
-                font: 'inherit',
-                fontSize: 13,
-                cursor: 'pointer',
-                borderRadius: 999,
-                padding: '8px 15px',
-                border: `0.5px solid ${active ? 'var(--ws-bordeaux)' : 'var(--ws-border)'}`,
-                background: active ? 'var(--ws-bordeaux)' : 'transparent',
-                color: active ? 'var(--ws-bg)' : 'var(--ws-muted)',
-              }}
-            >
-              {o.label}
-            </button>
-          )
-        })}
-      </div>
-      <div style={{ fontSize: 13, color: 'var(--ws-muted)', fontStyle: 'italic', marginBottom: 12 }}>{occDef.blurb}</div>
-      {recs.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-3)' }}>
-          {recs.map((b) => (
-            <button
-              key={b.id}
-              className="ws-hairline-btn"
-              onClick={() => {
-                s.closeRecommend()
-                s.openBottle(b)
-              }}
-              style={{ textAlign: 'left', font: 'inherit', cursor: 'pointer', background: 'var(--ws-alabaster)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-md)', padding: 'var(--ws-space-4)', display: 'flex', flexDirection: 'column', gap: 8 }}
-            >
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--ws-space-3)' }}>
-                <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 17, color: 'var(--ws-ink)', minWidth: 0 }}>
-                  {b.name} <span style={{ color: 'var(--ws-muted)', fontSize: 14 }}>{String(b.vintage)}</span>
-                </div>
-                <div style={{ flex: 'none', fontSize: 14, color: 'var(--ws-ink)', whiteSpace: 'nowrap' }}>{money(bottleValue(b))}</div>
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--ws-muted)' }}>
-                {b.producer} · {b.region}
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--ws-ink)', opacity: 0.82, lineHeight: 1.5 }}>{occDef.reason(b, money)}</div>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div style={{ textAlign: 'center', padding: 'var(--ws-space-5)', color: 'var(--ws-muted)', fontSize: 14 }}>Nothing in your cellar quite fits that just now. Try another occasion.</div>
-      )}
     </Modal>
   )
 }

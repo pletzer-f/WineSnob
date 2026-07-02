@@ -200,6 +200,15 @@ export function BottleDetailScreen() {
         </button>
       </div>
 
+      {/* ask the sommelier about this bottle */}
+      <button
+        className="ws-linkish ws-linkish--accent"
+        onClick={() => s.openSommelier(`Tell me about my ${selected.name} ${selected.vintage}: how is it drinking now, and when should I open it?`)}
+        style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 13.5, padding: '4px 0' }}
+      >
+        Ask the sommelier about this bottle <span style={{ fontSize: 15 }}>→</span>
+      </button>
+
       {/* same wine, other formats */}
       {siblings.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-3)', padding: 'var(--ws-space-5)', background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-lg)', boxShadow: 'var(--ws-shadow-sm)' }}>

@@ -218,9 +218,9 @@ export function Cellar() {
             onChange={(e) => s.setQuery(e.target.value)}
           />
         </div>
-        <button className="ws-hairline-btn" onClick={s.openRecommend} style={{ ...pillBtn, color: 'var(--ws-ink)' }}>
+        <button className="ws-hairline-btn" onClick={() => s.openSommelier()} style={{ ...pillBtn, color: 'var(--ws-ink)' }}>
           <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--ws-bordeaux)' }} />
-          Recommend a bottle
+          Ask the sommelier
         </button>
         <button className="ws-linkish" onClick={s.goNotes} style={{ background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 14, padding: '10px 6px' }}>
           All notes

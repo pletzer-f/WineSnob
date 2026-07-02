@@ -31,6 +31,121 @@ export async function parseImport(file: File): Promise<RawRead[]> {
   return caseBatch()
 }
 
+// ---- the sommelier ----
+
+export interface SomPick {
+  bottleId: string
+  name: string
+  vintage: string
+  role: 'top' | 'alternate' | 'buy'
+  why: string
+  serve: string
+  sayThis: string
+}
+
+export interface SomResult {
+  reply: string
+  quickReplies: string[]
+  picks: SomPick[]
+  raw: string
+}
+
+export interface SomTurnPayload {
+  role: 'user' | 'assistant'
+  text: string
+  image?: string | null
+}
+
+/** Ask the sommelier. Multi-turn, grounded in the owner's cellar; optional
+ * photo of a dish, menu or shelf. Demo mode answers from the local cellar. */
+export async function askSommelier(turns: SomTurnPayload[], context: Record<string, unknown>): Promise<SomResult> {
+  if (hasSupabase) {
+    const { data, error } = await supabase.functions.invoke('sommelier', { body: { turns, context } })
+    if (error) throw error
+    if (data?.error) throw new Error(data.error)
+    return {
+      reply: data?.reply || '',
+      quickReplies: (data?.quickReplies as string[]) || [],
+      picks: (data?.picks as SomPick[]) || [],
+      raw: data?.raw || '',
+    }
+  }
+  return demoSommelier(turns, context)
+}
+
+/** Downscale a photo before sending it to the sommelier (keeps payloads light). */
+export function downscaleImage(file: File, maxEdge = 1280): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const scale = Math.min(1, maxEdge / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return reject(new Error('Canvas unavailable'))
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      resolve(canvas.toDataURL('image/jpeg', 0.82))
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Could not read that photo.'))
+    }
+    img.src = url
+  })
+}
+
+async function demoSommelier(turns: SomTurnPayload[], context: Record<string, unknown>): Promise<SomResult> {
+  await new Promise((r) => setTimeout(r, 900))
+  const cellar = (context.cellar as Array<Record<string, unknown>>) || []
+  const userTurns = turns.filter((t) => t.role === 'user')
+  if (userTurns.length === 1 && !userTurns[0].image) {
+    return {
+      reply: 'Gladly. Is this a relaxed evening or a proper occasion, and are we leaning red or white?',
+      quickReplies: ['Relaxed, red', 'Proper occasion', 'Something white', 'Surprise me'],
+      picks: [],
+      raw: 'demo-clarify',
+    }
+  }
+  const ready = cellar.filter((b) => b.status === 'ready')
+  const byRating = ready.slice().sort((a, b) => ((b.rating as number) || 0) - ((a.rating as number) || 0))
+  const top = byRating[0]
+  const alt = byRating.find((b) => b.id !== top?.id && b.colour === top?.colour) || byRating[1]
+  const picks: SomPick[] = []
+  if (top) {
+    picks.push({
+      bottleId: String(top.id),
+      name: String(top.name),
+      vintage: String(top.vintage),
+      role: 'top',
+      why: 'It is squarely in its drinking window, you hold enough of it for the table, and it carries the evening without raiding the trophies.',
+      serve: '16-18C, decant 45 minutes, large-bowled glass',
+      sayThis: `The ${top.vintage} is drinking exactly where it should be, so we are opening it tonight rather than in five years.`,
+    })
+  }
+  if (alt) {
+    picks.push({
+      bottleId: String(alt.id),
+      name: String(alt.name),
+      vintage: String(alt.vintage),
+      role: 'alternate',
+      why: 'A touch plusher if the mood turns richer; equally ready, and there is a spare bottle should the first vanish quickly.',
+      serve: '16-18C, 30 minutes of air, same glasses',
+      sayThis: 'I wanted something with a little more flesh on the bone in reserve, in case the night runs long.',
+    })
+  }
+  return {
+    reply: picks.length
+      ? 'Then here is my verdict from your own rack. Both are ready tonight; the first is the one I would open.'
+      : 'Your cellar is empty just now, so add a few bottles and I will have something to pour.',
+    quickReplies: [],
+    picks,
+    raw: 'demo-picks',
+  }
+}
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()

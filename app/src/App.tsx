@@ -6,6 +6,7 @@ import { Landing } from '@/screens/Landing'
 import { AppFrame } from '@/components/AppFrame'
 import { Toaster } from '@/components/Toaster'
 import { Modals } from '@/modals/Modals'
+import { Sommelier } from '@/components/Sommelier'
 import { Onboarding } from '@/screens/Onboarding'
 import { Cellar } from '@/screens/Cellar'
 import { BottleDetailScreen } from '@/screens/BottleDetail'
@@ -71,6 +72,7 @@ export function App() {
         </div>
       </AppFrame>
       <Modals />
+      <Sommelier />
       <Toaster />
     </>
   )
