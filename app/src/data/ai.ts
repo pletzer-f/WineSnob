@@ -65,9 +65,10 @@ export interface ValuationInput {
  * when no price source is connected (the app then shows recorded values). */
 export async function valueCellar(bottles: ValuationInput[], currency: string): Promise<ValuationResult> {
   if (!hasSupabase) return { configured: false, provider: 'Wine-Searcher', results: [] }
-  // Chunk large cellars so each function call stays fast and within limits.
+  // Chunk large cellars so each function call stays fast and within limits
+  // (the AI market search engine prices up to 12 wines per call).
   const chunks: ValuationInput[][] = []
-  for (let i = 0; i < bottles.length; i += 60) chunks.push(bottles.slice(i, i + 60))
+  for (let i = 0; i < bottles.length; i += 12) chunks.push(bottles.slice(i, i + 12))
   const out: ValuationResult = { configured: true, provider: 'Wine-Searcher', results: [] }
   for (const chunk of chunks) {
     const { data, error } = await supabase.functions.invoke('value-cellar', { body: { bottles: chunk, currency } })

@@ -307,7 +307,7 @@ export interface StoreActions {
   consumeSomSeed: () => string | null
 
   // valuation
-  refreshValuations: () => Promise<void>
+  refreshValuations: (force?: boolean) => Promise<void>
 
   // edit form
   openManual: () => void
@@ -366,7 +366,7 @@ export interface StoreActions {
   // settings + account
   toggleSetting: (key: keyof Settings, checked: boolean) => void
   setCurrency: (c: Currency) => void
-  setCadence: (c: 'monthly' | 'quarterly') => void
+  setCadence: (c: 'weekly' | 'monthly' | 'quarterly') => void
   setDefaultView: (v: ViewMode) => void
   openAccount: () => void
   closeAccount: () => void
@@ -745,9 +745,14 @@ export const useStore = create<Store>((set, get) => {
     },
 
     // ---- valuation ----
-    refreshValuations: async () => {
+    refreshValuations: async (force = false) => {
       if (get().valuationBusy) return
-      const inputs = get().bottles.map((b) => ({
+      // Manual refresh revalues everything; the automatic pass only touches
+      // bottles that have gone stale against the chosen cadence.
+      const days = { weekly: 7, monthly: 30, quarterly: 90 }[get().settings.priceCadence] ?? 30
+      const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
+      const pool = force ? get().bottles : get().bottles.filter((b) => !b.marketAsOf || b.marketAsOf < cutoff)
+      const inputs = pool.map((b) => ({
         id: b.id,
         name: b.name,
         producer: b.producer,
@@ -756,7 +761,7 @@ export const useStore = create<Store>((set, get) => {
         format: b.format,
       }))
       if (inputs.length === 0) {
-        get().flash('Add a few bottles first')
+        if (force) get().flash(get().bottles.length ? 'Everything is freshly valued' : 'Add a few bottles first')
         return
       }
       set({ valuationBusy: true })
@@ -764,7 +769,7 @@ export const useStore = create<Store>((set, get) => {
         const res = await valueCellar(inputs, get().settings.currency)
         if (!res.configured) {
           set({ valuationConfigured: false })
-          get().flash('Connect a price source to value your cellar')
+          if (force) get().flash('Valuation is not available just now')
           return
         }
         const map = new Map(res.results.map((r) => [r.id, r]))
@@ -777,10 +782,12 @@ export const useStore = create<Store>((set, get) => {
           }),
         }))
         get()._persist()
-        get().flash(res.matched ? `Valued ${res.matched} of ${res.total} wines via ${res.provider}` : 'No market matches found for your wines')
+        if (force || res.matched) {
+          get().flash(res.matched ? `Valued ${res.matched} of ${res.total} wines via ${res.provider}` : 'No market prices found for your wines')
+        }
       } catch (e) {
         console.error('valuation', e)
-        get().flash('Could not refresh valuations just now')
+        if (force) get().flash('Could not refresh valuations just now')
       } finally {
         set({ valuationBusy: false })
       }

@@ -8,6 +8,7 @@ const CURRENCY_OPTIONS = [
   { label: 'British Pound (£)', value: 'GBP' },
 ]
 const CADENCE_OPTIONS = [
+  { label: 'Weekly', value: 'weekly' },
   { label: 'Monthly', value: 'monthly' },
   { label: 'Quarterly', value: 'quarterly' },
 ]
@@ -30,7 +31,7 @@ export function Settings() {
     ? `Priced by ${valSource}${valAsOf ? `, as of ${valAsOf}` : ''}. Refresh any time.`
     : notConnected
       ? 'Not connected. A price source key is needed to value at live market prices.'
-      : 'Value your cellar at live market prices from a connected price source.'
+      : 'AI prices each wine from live merchant and auction listings, with a low to high range.'
 
   return (
     <div className="ws-mobile-pad" style={page}>
@@ -63,12 +64,12 @@ export function Settings() {
           label="Market pricing"
           description={valuationDesc}
           control={
-            <Button variant={connected ? 'secondary' : 'primary'} onClick={s.refreshValuations} disabled={s.valuationBusy}>
+            <Button variant={connected ? 'secondary' : 'primary'} onClick={() => s.refreshValuations(true)} disabled={s.valuationBusy}>
               {s.valuationBusy ? 'Valuing…' : connected ? 'Refresh now' : 'Value my cellar'}
             </Button>
           }
         />
-        <SettingsRow label="Auto-update valuations" description="Refresh automatically once a price source is connected" control={<Switch checked={S.autoValue} onChange={(c) => s.toggleSetting('autoValue', c)} label="Auto-update valuations" />} />
+        <SettingsRow label="Auto-update valuations" description="Quietly revalue stale bottles when you open the app" control={<Switch checked={S.autoValue} onChange={(c) => s.toggleSetting('autoValue', c)} label="Auto-update valuations" />} />
         <SettingsRow label="Update frequency" description="How often valuations refresh when auto-update is on" control={<div style={{ minWidth: 150 }}><Select options={CADENCE_OPTIONS} value={S.priceCadence} onChange={(e) => s.setCadence(e.target.value as PriceCadence)} /></div>} />
       </Group>
 

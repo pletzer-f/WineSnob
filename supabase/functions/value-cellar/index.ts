@@ -1,16 +1,19 @@
-// WineSnob — real cellar valuation. Live market prices from a wine price
-// provider (Wine-Searcher by default), matched to each bottle and explained by
-// Claude Opus 4.8. Self-contained so it deploys as a single file.
+// WineSnob — real cellar valuation, two engines behind one endpoint.
 //
-// Secrets to set once the provider key arrives (Supabase → Edge Functions → secrets):
-//   WINE_PRICE_API_KEY   REQUIRED — the provider API key. With no key this
-//                        function returns { configured:false } and the app
-//                        keeps showing each bottle's recorded value.
-//   WINE_PRICE_API_URL   optional — the provider's base URL. Defaults to the
-//                        Wine-Searcher API base; override if your plan differs.
-//   WINE_PRICE_PROVIDER  optional — display name shown in the app. Default
-//                        "Wine-Searcher".
-//   ANTHROPIC_API_KEY    already set — used for wine matching + the market read.
+// Engine A (premium feed): when WINE_PRICE_API_KEY is set, prices come from a
+//   dedicated wine price provider (Wine-Searcher adapter by default) with
+//   Claude normalizing queries and writing the market read.
+// Engine B (default): with no provider key, Claude Opus 4.8 prices each wine
+//   from LIVE web listings via the Anthropic web search tool ($10 per 1,000
+//   searches on the existing ANTHROPIC_API_KEY). Grounded in current results,
+//   never guessed from model memory; wines without credible listings are
+//   omitted rather than invented.
+//
+// Optional secrets (Supabase → Edge Functions → secrets):
+//   WINE_PRICE_API_KEY   activates Engine A (takes precedence).
+//   WINE_PRICE_API_URL   Engine A base URL override.
+//   WINE_PRICE_PROVIDER  Engine A display name. Default "Wine-Searcher".
+//   ANTHROPIC_API_KEY    required for everything (already set).
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -99,6 +102,72 @@ const READ_SCHEMA = {
 
 interface InBottle { id: string; name?: string; producer?: string; vintage?: string | number; region?: string; format?: string }
 
+// ---- engine B: AI market search (default when no provider key is set) ----
+// Claude searches live merchant and auction listings at valuation time and
+// prices each wine from what it actually finds, with a low/high range. This is
+// grounded in current web results, not model memory. Cost: ~1-2 web searches
+// per wine at $10 per 1,000 searches, plus tokens.
+
+const SEARCH_PROVIDER = 'AI market search'
+
+const SEARCH_SYSTEM = `You are a fine-wine pricing analyst. For EACH wine in the list, use web search to find
+current retail listings or recent auction results, then determine the typical market price TODAY for one
+standard 750 ml bottle, in the requested currency (convert at current rates when a listing is in another
+currency). Prefer reputable wine merchants and marketplaces; when the currency is EUR prefer European
+listings. Use about one search per wine; only search again if the first result is inconclusive.
+
+Rules:
+- Price per standard 750 ml bottle, even when the owner holds another format.
+- "low" and "high" reflect the spread of real listings you saw; "unit" is the typical mid.
+- "read" is ONE short sentence (max 20 words) on how it is trading and whether to hold, drink, or sell,
+  reflecting your confidence. Calm, factual, no hype, no em dashes.
+- If you cannot find a credible current price for a wine, OMIT it entirely. Never guess from memory.
+- Reply with ONLY a JSON object, no prose before or after, exactly:
+  {"results":[{"id":"<exact id from input>","unit":<number>,"low":<number>,"high":<number>,"read":"<sentence>"}]}`
+
+function parseLooseJSON(text: string): any {
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start < 0 || end <= start) throw new Error('No JSON object in model reply.')
+  return JSON.parse(text.slice(start, end + 1))
+}
+
+async function aiMarketSearch(batch: InBottle[], currency: string): Promise<any[]> {
+  const key = Deno.env.get('ANTHROPIC_API_KEY')
+  if (!key) throw new Error('ANTHROPIC_API_KEY is not configured.')
+  const wines = batch.map((b) => ({ id: b.id, wine: [b.producer, b.name].filter(Boolean).join(' '), vintage: String(b.vintage ?? ''), region: b.region || '' }))
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-opus-4-8',
+      max_tokens: 4096,
+      system: SEARCH_SYSTEM,
+      messages: [{ role: 'user', content: `Currency: ${currency}\nWines:\n${JSON.stringify(wines)}` }],
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: Math.min(15, batch.length * 2) }],
+    }),
+  })
+  if (!res.ok) throw new Error(`Anthropic API ${res.status}: ${await res.text()}`)
+  const data = await res.json()
+  if (data.stop_reason === 'refusal') throw new Error('The request was declined.')
+  const text = (data.content || []).filter((b: { type: string }) => b.type === 'text').map((b: { text: string }) => b.text).join('')
+  const out = parseLooseJSON(text)
+  const asOf = new Date().toISOString().slice(0, 10)
+  const ids = new Set(batch.map((b) => b.id))
+  return ((out.results as any[]) || [])
+    .filter((r) => r && ids.has(r.id) && num(r.unit) != null && num(r.unit)! > 0)
+    .map((r) => ({
+      id: r.id,
+      unit: Math.round(num(r.unit)!),
+      low: num(r.low) ?? undefined,
+      high: num(r.high) ?? undefined,
+      read: typeof r.read === 'string' && r.read ? r.read : undefined,
+      currency,
+      source: SEARCH_PROVIDER,
+      asOf,
+    }))
+}
+
 /**
  * Provider adapter. Returns the market price per standard bottle, plus range.
  * ==== Wine-Searcher mapping — the one place to adjust if your plan differs. ====
@@ -137,8 +206,15 @@ Deno.serve(async (req: Request) => {
     const { bottles = [], currency = 'EUR', withRead = true } = await req.json()
     const apiKey = Deno.env.get('WINE_PRICE_API_KEY')
 
-    // Dormant until a price key is set. The app reads this and shows recorded values.
-    if (!apiKey) return json({ configured: false, provider: PROVIDER, results: [] })
+    // Engine selection: a dedicated price-feed key takes precedence; otherwise
+    // Claude prices from live web listings. Only unconfigured with no AI key.
+    if (!apiKey) {
+      if (!Deno.env.get('ANTHROPIC_API_KEY')) return json({ configured: false, provider: SEARCH_PROVIDER, results: [] })
+      if (!Array.isArray(bottles) || bottles.length === 0) return json({ configured: true, provider: SEARCH_PROVIDER, results: [] })
+      const batch: InBottle[] = bottles.slice(0, 12)
+      const results = await aiMarketSearch(batch, currency)
+      return json({ configured: true, provider: SEARCH_PROVIDER, asOf: new Date().toISOString().slice(0, 10), currency, matched: results.length, total: batch.length, results })
+    }
     if (!Array.isArray(bottles) || bottles.length === 0) return json({ configured: true, provider: PROVIDER, results: [] })
 
     // Bound cost and time per refresh; the client chunks larger cellars.

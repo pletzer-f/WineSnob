@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore, type Screen } from '@/store/store'
 import { bootstrapSession } from '@/data/session'
+import { hasSupabase } from '@/lib/supabase'
 import { isStandalone } from '@/lib/pwa'
 import { Landing } from '@/screens/Landing'
 import { AppFrame } from '@/components/AppFrame'
@@ -53,6 +54,17 @@ export function App() {
   const [continueWeb, setContinueWeb] = useState(false)
 
   useEffect(() => bootstrapSession(), [])
+
+  // Auto-valuation: once the cellar is loaded, quietly refresh bottles whose
+  // market price has gone stale against the cadence in Settings.
+  useEffect(() => {
+    if (!ready || !onboarded || !userId || !hasSupabase) return
+    const t = setTimeout(() => {
+      const st = useStore.getState()
+      if (st.settings.autoValue && st.bottles.length) void st.refreshValuations(false)
+    }, 4000)
+    return () => clearTimeout(t)
+  }, [ready, onboarded, userId])
 
   if (!ready) return null
 

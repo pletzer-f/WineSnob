@@ -15,7 +15,7 @@ export type FormatKey =
   | 'nebuchadnezzar'
 export type Currency = 'EUR' | 'USD' | 'GBP'
 export type Priority = 'grail' | 'high' | 'medium'
-export type PriceCadence = 'monthly' | 'quarterly'
+export type PriceCadence = 'weekly' | 'monthly' | 'quarterly'
 export type ViewMode = 'grid' | 'list'
 export type Measure = 'value' | 'bottles'
 export type CollectingGoal = 'drink' | 'invest' | 'both'
