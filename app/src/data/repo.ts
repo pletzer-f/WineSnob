@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabase'
-import { setRemoteSync } from '@/store/store'
+import { setRemoteSync, setSnapshotSink } from '@/store/store'
 import type { PersistData } from '@/data/sync'
 import type { Bottle, Drink, Vintage, Wish } from '@/domain/types'
+import type { Snapshot } from '@/domain/portfolio'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // The generated Supabase types are loose until `generate_typescript_types`
@@ -35,6 +36,8 @@ function profileRow(userId: string, d: PersistData) {
     log_stat_keys: d.logStatKeys,
     view: d.view,
     onboarded: d.onboarded,
+    portfolio_note: d.portfolioNote?.text ?? null,
+    portfolio_note_at: d.portfolioNote?.asOf ?? null,
     updated_at: new Date().toISOString(),
   }
 }
@@ -88,13 +91,14 @@ const wishFromRow = (r: any): Wish => ({
 /** Load a user's full dataset. Returns null when the user has no profile yet
  * (a fresh account that still needs onboarding). */
 export async function pullUserData(userId: string): Promise<PersistData | null> {
-  const [profile, cellars, bottles, drinks, wishlist, collections] = await Promise.all([
+  const [profile, cellars, bottles, drinks, wishlist, collections, snapshots] = await Promise.all([
     db.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
     db.from('cellars').select('*').eq('user_id', userId).order('position'),
     db.from('bottles').select('*').eq('user_id', userId),
     db.from('drinks').select('*').eq('user_id', userId),
     db.from('wishlist').select('*').eq('user_id', userId),
     db.from('custom_collections').select('*').eq('user_id', userId),
+    db.from('valuation_snapshots').select('day,total,invested,bottles').eq('user_id', userId).order('day', { ascending: true }).limit(1100),
   ])
   const p = profile.data
   if (!p) return null
@@ -116,7 +120,28 @@ export async function pullUserData(userId: string): Promise<PersistData | null> 
     drinks: (drinks.data || []).map(drinkFromRow),
     wishlist: (wishlist.data || []).map(wishFromRow),
     customCollections: (collections.data || []).map((c: any) => ({ id: c.id, title: c.title, desc: c.description || '', ids: c.ids || [] })),
+    snapshots: (snapshots.data || []).map((s: any) => ({
+      day: s.day,
+      total: Number(s.total),
+      invested: s.invested == null ? null : Number(s.invested),
+      bottles: s.bottles || 0,
+    })),
+    portfolioNote: p.portfolio_note ? { text: p.portfolio_note, asOf: p.portfolio_note_at || '' } : null,
   }
+}
+
+/** Record one day's cellar worth (upsert; the latest write for a day wins).
+ * Snapshots are written directly rather than through the whole-snapshot sync
+ * so history is append-only and never bulk-deleted. */
+export async function saveSnapshotRemote(userId: string, s: Snapshot, currency: string): Promise<void> {
+  await db.from('valuation_snapshots').upsert({
+    user_id: userId,
+    day: s.day,
+    total: s.total,
+    invested: s.invested,
+    bottles: s.bottles,
+    currency,
+  })
 }
 
 let inFlight = false
@@ -128,6 +153,9 @@ export function startRemoteSync() {
   setRemoteSync((userId, data) => {
     pending = { userId, data }
     void flush()
+  })
+  setSnapshotSink((userId, snap, currency) => {
+    void saveSnapshotRemote(userId, snap, currency).catch((e) => console.error('Snapshot sync failed', e))
   })
 }
 

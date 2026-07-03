@@ -1,4 +1,7 @@
 import type { Bottle, Cellar, CustomCollection, Drink, Wish } from '@/domain/types'
+import type { Snapshot } from '@/domain/portfolio'
+import { bottleValue } from '@/domain/valuation'
+import { todayISO } from '@/lib/date'
 
 // Illustrative sample cellar from the prototype. Used for the local demo
 // experience and as an optional "load sample cellar" for a new account.
@@ -57,4 +60,39 @@ export function seedCustomCollections(): CustomCollection[] {
     { id: 'cc-christmas', title: 'Christmas dinner', desc: 'For the table this December.', ids: ['margaux', 'cristal', 'hermitage'] },
     { id: 'cc-cellar-kids', title: 'For the kids one day', desc: 'Bottles to lay down for a future milestone.', ids: ['port', 'monfortino'] },
   ]
+}
+
+/** Sample valuation history: twice-weekly points over six months, easing up
+ * to the sample cellar's present worth. Deterministic, no randomness. */
+export function seedSnapshots(): Snapshot[] {
+  const total = seedBottles().reduce((a, b) => a + bottleValue(b), 0)
+  const bottles = seedBottles().reduce((a, b) => a + b.quantity, 0)
+  const invested = Math.round(
+    seedBottles().reduce((a, b) => a + (b.paid && b.quantity > 0 ? b.paid * b.quantity : 0), 0),
+  )
+  const today = new Date(`${todayISO()}T00:00:00Z`)
+  const points = 52
+  const out: Snapshot[] = []
+  for (let i = 0; i < points; i++) {
+    const d = new Date(today)
+    d.setUTCDate(d.getUTCDate() - (points - 1 - i) * 3.5)
+    const f = i / (points - 1)
+    // Gentle climb with two soft dips; ends exactly at today's value.
+    const drift = 0.915 + 0.085 * f
+    const wave = 0.012 * Math.sin(f * Math.PI * 3.1) + 0.006 * Math.sin(f * Math.PI * 7.3)
+    out.push({
+      day: d.toISOString().slice(0, 10),
+      total: Math.round(total * (i === points - 1 ? 1 : drift + wave)),
+      invested,
+      bottles,
+    })
+  }
+  return out
+}
+
+export function seedPortfolioNote(): { text: string; asOf: string } {
+  return {
+    text: 'The cellar sits comfortably ahead of cost, led by Bordeaux and a firm 2015 Margaux. Champagne provides ballast; Piedmont is the quiet compounder. Nothing looks stretched, and nothing needs selling.',
+    asOf: todayISO(),
+  }
 }

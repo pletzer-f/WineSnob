@@ -61,6 +61,7 @@ export function App() {
     if (!ready || !onboarded || !userId || !hasSupabase) return
     const t = setTimeout(() => {
       const st = useStore.getState()
+      st.recordSnapshot()
       if (st.settings.autoValue && st.bottles.length) void st.refreshValuations(false)
     }, 4000)
     return () => clearTimeout(t)

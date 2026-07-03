@@ -9,6 +9,7 @@ import type {
   ViewMode,
   Wish,
 } from '@/domain/types'
+import type { Snapshot } from '@/domain/portfolio'
 
 /** The persisted portion of the store — one user's whole dataset. */
 export interface PersistData {
@@ -25,6 +26,10 @@ export interface PersistData {
   view: ViewMode
   measure: Measure
   onboarded: boolean
+  /** Daily history of the cellar's worth (powers the portfolio chart). */
+  snapshots?: Snapshot[]
+  /** AI desk note across the whole cellar, with its as-of date. */
+  portfolioNote?: { text: string; asOf: string } | null
 }
 
 const KEY = 'winesnob:snapshot:v1'

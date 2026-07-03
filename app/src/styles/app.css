@@ -1004,3 +1004,72 @@ body {
     opacity: 1;
   }
 }
+
+/* ============================================================== Portfolio */
+/* Broker-style range selector, position rows, and allocation layout. */
+
+.ws-folio-ranges {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--ws-stone);
+  border-radius: 999px;
+  align-self: flex-start;
+}
+.ws-folio-range {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ws-muted);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.ws-folio-range--on {
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  box-shadow: 0 1px 2px rgba(46, 43, 38, 0.08);
+}
+
+.ws-folio-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-4);
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-top: 0.5px solid var(--ws-border);
+  padding: 13px 0;
+  cursor: pointer;
+  font: inherit;
+}
+.ws-folio-row:first-child {
+  border-top: none;
+}
+
+.ws-folio-alloc {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-6);
+  flex-wrap: wrap;
+}
+
+/* Invested / realized always sit as a pair (the base .ws-stat-duo stacks). */
+.ws-folio-duo {
+  grid-template-rows: none;
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 767.98px) {
+  .ws-folio-alloc {
+    flex-direction: column;
+    gap: var(--ws-space-5);
+  }
+  /* Keep the invested/realized pair side by side but let text wrap. */
+  .ws-folio-duo .ws-stat-figure {
+    font-size: 24px;
+  }
+}

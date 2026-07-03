@@ -1,5 +1,8 @@
 import { create } from 'zustand'
-import { valueCellar, type SomPick } from '@/data/ai'
+import { askSommelier, valueCellar, type SomPick } from '@/data/ai'
+import { hasSupabase } from '@/lib/supabase'
+import { bottleValue } from '@/domain/valuation'
+import { allocation, costBasis, movers, type Snapshot } from '@/domain/portfolio'
 import type {
   Account,
   Bottle,
@@ -26,6 +29,8 @@ import {
   seedCellars,
   seedCustomCollections,
   seedDrinks,
+  seedPortfolioNote,
+  seedSnapshots,
   seedWishlist,
 } from './seed'
 import {
@@ -212,6 +217,10 @@ export interface StoreState {
   valuationConfigured: boolean | null
   valuationInfo: { asOf?: string; source?: string; matched?: number; total?: number } | null
 
+  // portfolio
+  snapshots: Snapshot[]
+  portfolioNote: { text: string; asOf: string } | null
+
   // wishlist form
   wishOpen: boolean
   wishEditId: string | null
@@ -308,6 +317,10 @@ export interface StoreActions {
 
   // valuation
   refreshValuations: (force?: boolean) => Promise<void>
+
+  // portfolio
+  recordSnapshot: () => void
+  refreshDeskNote: () => Promise<void>
 
   // edit form
   openManual: () => void
@@ -474,11 +487,20 @@ function snapshot(s: StoreState): PersistData {
     view: s.view,
     measure: s.measure,
     onboarded: s.onboarded,
+    snapshots: s.snapshots,
+    portfolioNote: s.portfolioNote,
   }
 }
 
 // ---- remote sync hook (wired to Supabase in data/repo.ts) ----
 let remoteSync: ((userId: string, data: PersistData) => void) | null = null
+
+// Snapshot sink: history rows are written directly (append-only) rather than
+// through the whole-snapshot sync. Registered by data/repo.ts.
+let snapshotSink: ((userId: string, snap: Snapshot, currency: string) => void) | null = null
+export function setSnapshotSink(fn: ((userId: string, snap: Snapshot, currency: string) => void) | null) {
+  snapshotSink = fn
+}
 export function setRemoteSync(fn: ((userId: string, data: PersistData) => void) | null) {
   remoteSync = fn
 }
@@ -532,6 +554,8 @@ const initialState: StoreState = {
   valuationBusy: false,
   valuationConfigured: null,
   valuationInfo: null,
+  snapshots: [],
+  portfolioNote: null,
   wishOpen: false,
   wishEditId: null,
   wishForm: emptyWishForm(),
@@ -593,6 +617,8 @@ export const useStore = create<Store>((set, get) => {
         view: data.view || 'grid',
         measure: data.measure || 'bottles',
         onboarded: !!data.onboarded,
+        snapshots: data.snapshots || [],
+        portfolioNote: data.portfolioNote || null,
         ready: true,
       })
     },
@@ -614,6 +640,8 @@ export const useStore = create<Store>((set, get) => {
         activeCellar: 'main',
         onboarded: true,
         screen: 'cellar',
+        snapshots: seedSnapshots(),
+        portfolioNote: seedPortfolioNote(),
       })
       get()._persist()
       get().flash('Sample cellar loaded')
@@ -782,6 +810,8 @@ export const useStore = create<Store>((set, get) => {
           }),
         }))
         get()._persist()
+        get().recordSnapshot()
+        void get().refreshDeskNote()
         if (force || res.matched) {
           get().flash(res.matched ? `Valued ${res.matched} of ${res.total} wines via ${res.provider}` : 'No market prices found for your wines')
         }
@@ -790,6 +820,61 @@ export const useStore = create<Store>((set, get) => {
         if (force) get().flash('Could not refresh valuations just now')
       } finally {
         set({ valuationBusy: false })
+      }
+    },
+
+    // ---- portfolio ----
+    recordSnapshot: () => {
+      const s = get()
+      if (!s.bottles.length) return
+      const day = todayISO()
+      let total = 0
+      let invested = 0
+      let hasPaid = false
+      let count = 0
+      s.bottles.forEach((b) => {
+        total += bottleValue(b)
+        count += b.quantity
+        if (b.paid != null && b.paid > 0 && b.quantity > 0) {
+          invested += b.paid * b.quantity
+          hasPaid = true
+        }
+      })
+      const snap: Snapshot = { day, total: Math.round(total), invested: hasPaid ? Math.round(invested) : null, bottles: count }
+      set((st) => ({ snapshots: [...st.snapshots.filter((x) => x.day !== day), snap].sort((a, b) => a.day.localeCompare(b.day)) }))
+      get()._persist()
+      if (s.userId && snapshotSink) snapshotSink(s.userId, snap, s.settings.currency)
+    },
+    refreshDeskNote: async () => {
+      const s = get()
+      if (!hasSupabase || !s.bottles.length) return
+      try {
+        const cb = costBasis(s.bottles)
+        const mv = movers(s.bottles, 2)
+        const data = {
+          currency: s.settings.currency,
+          marketValue: Math.round(cb.totalMarket),
+          invested: Math.round(cb.invested),
+          returnPct: cb.gainPct == null ? null : Math.round(cb.gainPct * 10) / 10,
+          topGainers: mv.up.map((m) => `${m.name} ${m.vintage} ${m.pct >= 0 ? '+' : ''}${Math.round(m.pct)}%`),
+          topLosers: mv.down.map((m) => `${m.name} ${m.vintage} ${Math.round(m.pct)}%`),
+          allocation: allocation(s.bottles, 'region', 4).map((a) => `${a.label} ${Math.round(a.pct)}%`),
+        }
+        const res = await askSommelier(
+          [
+            {
+              role: 'user',
+              text: `Write the desk note for my wine portfolio: ONE calm paragraph, at most 45 words, covering its value, the notable movers and the allocation tilt. No greeting, no questions, no recommendations, no picks, no em dashes. Data: ${JSON.stringify(data)}`,
+            },
+          ],
+          { purpose: 'portfolio desk note' },
+        )
+        if (res.reply) {
+          set({ portfolioNote: { text: res.reply, asOf: todayISO() } })
+          get()._persist()
+        }
+      } catch (e) {
+        console.error('desk note', e)
       }
     },
 
