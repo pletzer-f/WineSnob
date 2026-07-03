@@ -88,6 +88,37 @@ How to advise:
 - Use the owner's currency for any prices. Today's date is in the data; use it for drink windows.`
 }
 
+
+// ---- per-user usage log (feeds the admin cost view). Never fatal. ----
+function logUsage(req: Request | undefined, fn: string, usage: unknown) {
+  try {
+    const svc = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    const base = Deno.env.get('SUPABASE_URL')
+    if (!svc || !base || !usage) return
+    const u = usage as { input_tokens?: number; output_tokens?: number; server_tool_use?: { web_search_requests?: number } }
+    let userId: string | null = null
+    try {
+      const token = (req?.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
+      const payload = token.split('.')[1] || ''
+      const b64 = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '=')
+      userId = JSON.parse(atob(b64)).sub || null
+    } catch (_) {
+      // anon or malformed token: log without attribution
+    }
+    const inTok = u.input_tokens || 0
+    const outTok = u.output_tokens || 0
+    const searches = u.server_tool_use?.web_search_requests || 0
+    const cost = (inTok * 5 + outTok * 25) / 1_000_000 + searches * 0.01
+    void fetch(`${base}/rest/v1/ai_usage`, {
+      method: 'POST',
+      headers: { apikey: svc, Authorization: `Bearer ${svc}`, 'content-type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ user_id: userId, fn, model: 'claude-opus-4-8', input_tokens: inTok, output_tokens: outTok, searches, cost_usd: Math.round(cost * 1e6) / 1e6 }),
+    }).catch(() => {})
+  } catch (_) {
+    // logging must never break the feature
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   try {
@@ -123,6 +154,7 @@ Deno.serve(async (req: Request) => {
     })
     if (!res.ok) throw new Error(`Anthropic API ${res.status}: ${await res.text()}`)
     const data = await res.json()
+    logUsage(req, 'sommelier', data.usage)
     if (data.stop_reason === 'refusal') throw new Error('The request was declined.')
     const text = (data.content || []).filter((b: { type: string }) => b.type === 'text').map((b: { text: string }) => b.text).join('')
     const out = JSON.parse(text)

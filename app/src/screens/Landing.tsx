@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Logo, Button } from 'winesnob-design-system'
 import { canPromptInstall, isIOS, onInstallChange, promptInstall } from '@/lib/pwa'
+import { useStore } from '@/store/store'
 
 const VALUE_PROPS = [
   { t: 'It reads your labels', d: 'Snap a bottle and WineSnob fills in the vintage, producer and region.' },
@@ -77,6 +78,14 @@ export function Landing({ onContinue }: { onContinue: () => void }) {
 
         <button className="ws-linkish" onClick={onContinue} style={{ alignSelf: 'center', background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 14.5, padding: 8 }}>
           Continue in your browser →
+        </button>
+
+        <button
+          className="ws-linkish"
+          onClick={() => useStore.getState().openAdmin()}
+          style={{ alignSelf: 'center', background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 12.5, padding: 6, color: 'var(--ws-taupe)' }}
+        >
+          Log in as Admin
         </button>
       </div>
     </div>

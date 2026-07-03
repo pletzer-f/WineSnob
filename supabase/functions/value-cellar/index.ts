@@ -36,7 +36,7 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-async function claudeJSON(system: string, userText: string, schema: Record<string, unknown>, maxTokens = 2048): Promise<any> {
+async function claudeJSON(system: string, userText: string, schema: Record<string, unknown>, maxTokens = 2048, req?: Request): Promise<any> {
   const key = Deno.env.get('ANTHROPIC_API_KEY')
   if (!key) throw new Error('ANTHROPIC_API_KEY is not configured.')
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -52,6 +52,7 @@ async function claudeJSON(system: string, userText: string, schema: Record<strin
   })
   if (!res.ok) throw new Error(`Anthropic API ${res.status}: ${await res.text()}`)
   const data = await res.json()
+  logUsage(req, 'value-cellar', data.usage)
   if (data.stop_reason === 'refusal') throw new Error('The request was declined.')
   const text = (data.content || []).filter((b: { type: string }) => b.type === 'text').map((b: { text: string }) => b.text).join('')
   return JSON.parse(text)
@@ -132,7 +133,7 @@ function parseLooseJSON(text: string): any {
   return JSON.parse(text.slice(start, end + 1))
 }
 
-async function aiMarketSearch(batch: InBottle[], currency: string): Promise<any[]> {
+async function aiMarketSearch(batch: InBottle[], currency: string, req?: Request): Promise<any[]> {
   const key = Deno.env.get('ANTHROPIC_API_KEY')
   if (!key) throw new Error('ANTHROPIC_API_KEY is not configured.')
   const wines = batch.map((b) => ({ id: b.id, wine: [b.producer, b.name].filter(Boolean).join(' '), vintage: String(b.vintage ?? ''), region: b.region || '' }))
@@ -149,6 +150,7 @@ async function aiMarketSearch(batch: InBottle[], currency: string): Promise<any[
   })
   if (!res.ok) throw new Error(`Anthropic API ${res.status}: ${await res.text()}`)
   const data = await res.json()
+  logUsage(req, 'value-cellar', data.usage)
   if (data.stop_reason === 'refusal') throw new Error('The request was declined.')
   const text = (data.content || []).filter((b: { type: string }) => b.type === 'text').map((b: { text: string }) => b.text).join('')
   const out = parseLooseJSON(text)
@@ -200,6 +202,37 @@ async function fetchPrice(winename: string, vintage: string, currency: string, a
   // ================================================================================
 }
 
+
+// ---- per-user usage log (feeds the admin cost view). Never fatal. ----
+function logUsage(req: Request | undefined, fn: string, usage: unknown) {
+  try {
+    const svc = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    const base = Deno.env.get('SUPABASE_URL')
+    if (!svc || !base || !usage) return
+    const u = usage as { input_tokens?: number; output_tokens?: number; server_tool_use?: { web_search_requests?: number } }
+    let userId: string | null = null
+    try {
+      const token = (req?.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
+      const payload = token.split('.')[1] || ''
+      const b64 = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '=')
+      userId = JSON.parse(atob(b64)).sub || null
+    } catch (_) {
+      // anon or malformed token: log without attribution
+    }
+    const inTok = u.input_tokens || 0
+    const outTok = u.output_tokens || 0
+    const searches = u.server_tool_use?.web_search_requests || 0
+    const cost = (inTok * 5 + outTok * 25) / 1_000_000 + searches * 0.01
+    void fetch(`${base}/rest/v1/ai_usage`, {
+      method: 'POST',
+      headers: { apikey: svc, Authorization: `Bearer ${svc}`, 'content-type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ user_id: userId, fn, model: 'claude-opus-4-8', input_tokens: inTok, output_tokens: outTok, searches, cost_usd: Math.round(cost * 1e6) / 1e6 }),
+    }).catch(() => {})
+  } catch (_) {
+    // logging must never break the feature
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   try {
@@ -212,7 +245,7 @@ Deno.serve(async (req: Request) => {
       if (!Deno.env.get('ANTHROPIC_API_KEY')) return json({ configured: false, provider: SEARCH_PROVIDER, results: [] })
       if (!Array.isArray(bottles) || bottles.length === 0) return json({ configured: true, provider: SEARCH_PROVIDER, results: [] })
       const batch: InBottle[] = bottles.slice(0, 12)
-      const results = await aiMarketSearch(batch, currency)
+      const results = await aiMarketSearch(batch, currency, req)
       return json({ configured: true, provider: SEARCH_PROVIDER, asOf: new Date().toISOString().slice(0, 10), currency, matched: results.length, total: batch.length, results })
     }
     if (!Array.isArray(bottles) || bottles.length === 0) return json({ configured: true, provider: PROVIDER, results: [] })
@@ -223,7 +256,7 @@ Deno.serve(async (req: Request) => {
     // 1) Normalize each entry into a clean provider query (best-effort).
     let queries = batch.map((b) => ({ id: b.id, winename: [b.producer, b.name].filter(Boolean).join(' ').trim(), vintage: String(b.vintage ?? '') }))
     try {
-      const norm = await claudeJSON(MATCH_SYSTEM, JSON.stringify(batch), MATCH_SCHEMA)
+      const norm = await claudeJSON(MATCH_SYSTEM, JSON.stringify(batch), MATCH_SCHEMA, 2048, req)
       if (norm?.items?.length) {
         const map = new Map<string, { winename: string; vintage: string }>(norm.items.map((i: any) => [i.id, { winename: i.winename, vintage: i.vintage }]))
         queries = batch.map((b) => {
@@ -253,7 +286,7 @@ Deno.serve(async (req: Request) => {
           const b = batch.find((x) => x.id === r.id)
           return { id: r.id, name: b?.name, producer: b?.producer, vintage: b?.vintage, region: b?.region, price: r.unit, low: r.low, high: r.high, currency }
         })
-        const reads = await claudeJSON(READ_SYSTEM, JSON.stringify(ctx), READ_SCHEMA)
+        const reads = await claudeJSON(READ_SYSTEM, JSON.stringify(ctx), READ_SCHEMA, 2048, req)
         const rmap = new Map<string, string>((reads?.reads || []).map((x: any) => [x.id, x.read]))
         results.forEach((r) => (r.read = rmap.get(r.id) || undefined))
       } catch (_) {

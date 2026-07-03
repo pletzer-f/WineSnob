@@ -89,6 +89,7 @@ export function Settings() {
       <Group title="Setup">
         <SettingsRow label="Manage cellars" description="Name, add or remove cellars (up to three)" control={<Button variant="secondary" onClick={s.openCellarManage}>Manage</Button>} />
         <SettingsRow label="Replay onboarding" description="See the welcome and cellar setup flow again" control={<Button variant="secondary" onClick={s.replayOnboarding}>Replay</Button>} />
+        <SettingsRow label="Admin console" description="Accounts, usage and cost, for administrators" control={<Button variant="secondary" onClick={s.openAdmin}>Open</Button>} />
       </Group>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--ws-space-3)', borderTop: '0.5px solid var(--ws-border)', paddingTop: 'var(--ws-space-5)' }}>

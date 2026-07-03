@@ -8,6 +8,7 @@ import { AppFrame } from '@/components/AppFrame'
 import { Toaster } from '@/components/Toaster'
 import { Modals } from '@/modals/Modals'
 import { Sommelier } from '@/components/Sommelier'
+import { Admin } from '@/screens/Admin'
 import { Onboarding } from '@/screens/Onboarding'
 import { Cellar } from '@/screens/Cellar'
 import { BottleDetailScreen } from '@/screens/BottleDetail'
@@ -52,6 +53,7 @@ export function App() {
   const userId = useStore((s) => s.userId)
   const screen = useStore((s) => s.screen)
   const [continueWeb, setContinueWeb] = useState(false)
+  const adminOpen = useStore((s) => s.adminOpen)
 
   useEffect(() => bootstrapSession(), [])
 
@@ -72,10 +74,21 @@ export function App() {
   // Public front door: a browser visitor who isn't signed in sees the install
   // landing first. Installed (standalone) launches and signed-in users skip it.
   if (!onboarded && !userId && !continueWeb && !isStandalone()) {
-    return <Landing onContinue={() => setContinueWeb(true)} />
+    return (
+      <>
+        <Landing onContinue={() => setContinueWeb(true)} />
+        {adminOpen && <Admin />}
+      </>
+    )
   }
 
-  if (!onboarded) return <Onboarding />
+  if (!onboarded)
+    return (
+      <>
+        <Onboarding />
+        {adminOpen && <Admin />}
+      </>
+    )
 
   return (
     <>
@@ -86,6 +99,7 @@ export function App() {
       </AppFrame>
       <Modals />
       <Sommelier />
+      {adminOpen && <Admin />}
       <Toaster />
     </>
   )

@@ -221,6 +221,9 @@ export interface StoreState {
   snapshots: Snapshot[]
   portfolioNote: { text: string; asOf: string } | null
 
+  // admin console
+  adminOpen: boolean
+
   // wishlist form
   wishOpen: boolean
   wishEditId: string | null
@@ -321,6 +324,10 @@ export interface StoreActions {
   // portfolio
   recordSnapshot: () => void
   refreshDeskNote: () => Promise<void>
+
+  // admin console
+  openAdmin: () => void
+  closeAdmin: () => void
 
   // edit form
   openManual: () => void
@@ -556,6 +563,7 @@ const initialState: StoreState = {
   valuationInfo: null,
   snapshots: [],
   portfolioNote: null,
+  adminOpen: false,
   wishOpen: false,
   wishEditId: null,
   wishForm: emptyWishForm(),
@@ -877,6 +885,10 @@ export const useStore = create<Store>((set, get) => {
         console.error('desk note', e)
       }
     },
+
+    // ---- admin console ----
+    openAdmin: () => set({ adminOpen: true }),
+    closeAdmin: () => set({ adminOpen: false }),
 
     // ---- edit form ----
     openManual: () => set({ screen: 'edit', editId: null, editFrom: 'add', form: blankForm(), errors: {} }),
