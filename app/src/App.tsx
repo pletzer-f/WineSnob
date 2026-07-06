@@ -53,9 +53,14 @@ export function App() {
   const onboarded = useStore((s) => s.onboarded)
   const userId = useStore((s) => s.userId)
   const screen = useStore((s) => s.screen)
-  const [continueWeb, setContinueWeb] = useState(false)
   const adminOpen = useStore((s) => s.adminOpen)
   const pwRecovery = useStore((s) => s.pwRecovery)
+
+  // The front-door decision is made ONCE per visit, when the session first
+  // resolves: browser visitors without an account get the landing journey and
+  // keep it through sign-up until they choose to enter; installed launches and
+  // already-signed-in reloads go straight in.
+  const [showLanding, setShowLanding] = useState<boolean | null>(null)
 
   useEffect(() => bootstrapSession(), [])
 
@@ -71,14 +76,18 @@ export function App() {
     return () => clearTimeout(t)
   }, [ready, onboarded, userId])
 
-  if (!ready) return null
+  useEffect(() => {
+    if (ready && showLanding === null) {
+      setShowLanding(!onboarded && !userId && !isStandalone())
+    }
+  }, [ready, onboarded, userId, showLanding])
 
-  // Public front door: a browser visitor who isn't signed in sees the install
-  // landing first. Installed (standalone) launches and signed-in users skip it.
-  if (!onboarded && !userId && !continueWeb && !isStandalone()) {
+  if (!ready || showLanding === null) return null
+
+  if (showLanding) {
     return (
       <>
-        <Landing onContinue={() => setContinueWeb(true)} />
+        <Landing onDone={() => setShowLanding(false)} />
         {adminOpen && <Admin />}
         {pwRecovery && <ResetPassword />}
         <Toaster />

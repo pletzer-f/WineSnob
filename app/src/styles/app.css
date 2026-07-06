@@ -1073,3 +1073,264 @@ body {
     font-size: 24px;
   }
 }
+
+/* ======================================================== Landing journey */
+/* Act I introduces, act II joins, act III installs. */
+
+.ws-land {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--ws-bg);
+  overflow-y: auto;
+  font-family: var(--ws-font-ui);
+  color: var(--ws-ink);
+}
+
+/* Scroll reveal: scenes rise into place. */
+.ws-reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.ws-reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ws-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* Slim bar that fades in once the hero scrolls away. */
+.ws-land-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px max(18px, env(safe-area-inset-right)) 9px max(18px, env(safe-area-inset-left));
+  background: rgba(250, 248, 242, 0.9);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border-bottom: 0.5px solid var(--ws-border);
+  opacity: 0;
+  transform: translateY(-100%);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
+}
+.ws-land-bar--on {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.ws-land-bar .ws-logo--horizontal .ws-logo__line {
+  font-size: 15px;
+}
+
+.ws-land-hero {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ws-space-7) var(--ws-space-5);
+  box-sizing: border-box;
+  position: relative;
+  background: radial-gradient(120% 85% at 50% 0%, var(--ws-alabaster-raised) 0%, var(--ws-alabaster) 55%, var(--ws-cream) 135%);
+}
+.ws-land-hero__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--ws-space-6);
+  max-width: 560px;
+}
+.ws-land-kicker {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ws-muted);
+}
+.ws-land-h1 {
+  font-family: var(--ws-font-display);
+  font-weight: 500;
+  font-size: clamp(38px, 9vw, 58px);
+  line-height: 1.06;
+  margin: 12px 0 0;
+  color: var(--ws-ink);
+}
+.ws-land-h2 {
+  font-family: var(--ws-font-display);
+  font-weight: 500;
+  font-size: clamp(27px, 6vw, 36px);
+  line-height: 1.12;
+  margin: 10px 0 0;
+  color: var(--ws-ink);
+}
+.ws-land-sub {
+  font-size: 15.5px;
+  line-height: 1.62;
+  color: var(--ws-muted);
+  max-width: 430px;
+  margin: 14px auto 0;
+}
+.ws-land-ctas {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+.ws-land-scrolldown {
+  position: absolute;
+  bottom: max(18px, env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--ws-taupe);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ws-land-scrolldown svg {
+    animation: ws-bob 2.2s ease-in-out infinite;
+  }
+}
+@keyframes ws-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+/* Feature scenes */
+.ws-land-scene {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--ws-space-6);
+  align-items: center;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 72px var(--ws-space-5);
+  box-sizing: border-box;
+}
+@media (min-width: 768px) {
+  .ws-land-scene {
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+    padding: 104px var(--ws-space-6);
+  }
+  .ws-land-scene--flip .ws-land-scene__copy {
+    order: 2;
+  }
+  .ws-land-scene--flip .ws-land-scene__art {
+    order: 1;
+  }
+}
+.ws-land-n {
+  font-family: var(--ws-font-display);
+  font-size: 15px;
+  color: var(--ws-taupe);
+  margin-bottom: 10px;
+}
+.ws-land-body {
+  font-size: 15px;
+  line-height: 1.66;
+  color: var(--ws-muted);
+  margin: 14px 0 0;
+  max-width: 46ch;
+}
+.ws-land-scene__art {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+.ws-land-mock {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--ws-surface);
+  border: 0.5px solid var(--ws-border);
+  border-radius: 18px;
+  padding: var(--ws-space-5);
+  box-shadow: var(--ws-shadow);
+  box-sizing: border-box;
+}
+.ws-land-mock--folio {
+  gap: 8px;
+}
+.ws-land-chip {
+  align-self: flex-start;
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ws-bordeaux);
+  background: var(--ws-cream);
+  border: 0.5px solid var(--ws-border);
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+/* Closing invitation + footer */
+.ws-land-close {
+  padding: 88px var(--ws-space-5) 28px;
+  text-align: center;
+  max-width: 640px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+.ws-land-foot {
+  margin-top: 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  padding-bottom: max(26px, env(safe-area-inset-bottom, 0px));
+}
+
+/* Acts II and III: single centered panels */
+.ws-land-step {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ws-space-6) var(--ws-space-5);
+  box-sizing: border-box;
+  position: relative;
+}
+.ws-land-step__inner {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-6);
+  align-items: center;
+}
+.ws-land-step .ws-signin {
+  width: 100%;
+  max-width: none;
+}
+.ws-land-acts {
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ws-bordeaux);
+}
