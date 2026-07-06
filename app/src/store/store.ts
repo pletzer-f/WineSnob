@@ -224,6 +224,9 @@ export interface StoreState {
   // admin console
   adminOpen: boolean
 
+  // password recovery (set when a reset link opens the app)
+  pwRecovery: boolean
+
   // wishlist form
   wishOpen: boolean
   wishEditId: string | null
@@ -328,6 +331,9 @@ export interface StoreActions {
   // admin console
   openAdmin: () => void
   closeAdmin: () => void
+
+  // password recovery
+  clearPwRecovery: () => void
 
   // edit form
   openManual: () => void
@@ -564,6 +570,7 @@ const initialState: StoreState = {
   snapshots: [],
   portfolioNote: null,
   adminOpen: false,
+  pwRecovery: false,
   wishOpen: false,
   wishEditId: null,
   wishForm: emptyWishForm(),
@@ -889,6 +896,9 @@ export const useStore = create<Store>((set, get) => {
     // ---- admin console ----
     openAdmin: () => set({ adminOpen: true }),
     closeAdmin: () => set({ adminOpen: false }),
+
+    // ---- password recovery ----
+    clearPwRecovery: () => set({ pwRecovery: false }),
 
     // ---- edit form ----
     openManual: () => set({ screen: 'edit', editId: null, editFrom: 'add', form: blankForm(), errors: {} }),

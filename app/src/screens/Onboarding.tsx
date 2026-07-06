@@ -17,6 +17,43 @@ const COLOUR_CHIPS = [
   { key: 'fortified', label: 'Fortified' },
 ]
 
+function ForgotPassword({ email }: { email: string }) {
+  const s = useStore()
+  const [sent, setSent] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const send = async () => {
+    const to = email.trim()
+    if (!to) {
+      s.flash('Enter your email above first')
+      return
+    }
+    if (!hasSupabase) {
+      s.flash('Password reset needs the live backend')
+      return
+    }
+    setBusy(true)
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(to, { redirectTo: window.location.origin })
+      if (error) throw error
+      setSent(true)
+      s.flash(`Reset link sent to ${to}`, 4200)
+    } catch (e) {
+      s.flash(e instanceof Error ? e.message : 'Could not send the reset email')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <button
+      onClick={() => void send()}
+      disabled={busy || sent}
+      style={{ background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 13, color: 'var(--ws-muted)', padding: 4, alignSelf: 'center' }}
+    >
+      {sent ? 'Check your inbox for the reset link' : busy ? 'Sending…' : 'Forgot password?'}
+    </button>
+  )
+}
+
 export function Onboarding() {
   const s = useStore()
   return (
@@ -96,6 +133,7 @@ function AuthStep() {
           <Button variant="primary" onClick={submit} disabled={busy}>
             {busy ? 'One moment…' : signup ? 'Create cellar' : 'Sign in'}
           </Button>
+          {!signup && <ForgotPassword email={email} />}
         </div>
         <div className="ws-signin__foot">
           <button onClick={s.toggleAuthMode} style={{ background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 14, color: 'var(--ws-muted)' }}>

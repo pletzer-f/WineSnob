@@ -34,7 +34,12 @@ export function bootstrapSession(): () => void {
       useStore.getState().onSignedOut()
       return
     }
-    if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+    // A password-recovery link signs the user in and fires this event; show
+    // the choose-a-new-password screen on top while the app loads beneath.
+    if (event === 'PASSWORD_RECOVERY') {
+      useStore.setState({ pwRecovery: true })
+    }
+    if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'PASSWORD_RECOVERY')) {
       void onSignedIn(session)
     } else if (event === 'INITIAL_SESSION' && !session) {
       useStore.setState({ ready: true })

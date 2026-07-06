@@ -9,6 +9,7 @@ import { Toaster } from '@/components/Toaster'
 import { Modals } from '@/modals/Modals'
 import { Sommelier } from '@/components/Sommelier'
 import { Admin } from '@/screens/Admin'
+import { ResetPassword } from '@/screens/ResetPassword'
 import { Onboarding } from '@/screens/Onboarding'
 import { Cellar } from '@/screens/Cellar'
 import { BottleDetailScreen } from '@/screens/BottleDetail'
@@ -54,6 +55,7 @@ export function App() {
   const screen = useStore((s) => s.screen)
   const [continueWeb, setContinueWeb] = useState(false)
   const adminOpen = useStore((s) => s.adminOpen)
+  const pwRecovery = useStore((s) => s.pwRecovery)
 
   useEffect(() => bootstrapSession(), [])
 
@@ -78,6 +80,8 @@ export function App() {
       <>
         <Landing onContinue={() => setContinueWeb(true)} />
         {adminOpen && <Admin />}
+        {pwRecovery && <ResetPassword />}
+        <Toaster />
       </>
     )
   }
@@ -87,6 +91,8 @@ export function App() {
       <>
         <Onboarding />
         {adminOpen && <Admin />}
+        {pwRecovery && <ResetPassword />}
+        <Toaster />
       </>
     )
 
@@ -100,6 +106,7 @@ export function App() {
       <Modals />
       <Sommelier />
       {adminOpen && <Admin />}
+      {pwRecovery && <ResetPassword />}
       <Toaster />
     </>
   )

@@ -258,6 +258,20 @@ function UserRow({ u, self, onChanged, flash }: { u: AdminUser; self: boolean; o
     return () => clearTimeout(t)
   }, [armed])
 
+  const emailReset = async () => {
+    setBusy(true)
+    setErr(null)
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(u.email, { redirectTo: window.location.origin })
+      if (error) throw error
+      flash(`Reset link emailed to ${u.email}`, 3600)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not send the reset email')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const setPassword = async () => {
     setBusy(true)
     setErr(null)
@@ -326,6 +340,9 @@ function UserRow({ u, self, onChanged, flash }: { u: AdminUser; self: boolean; o
       <div style={{ display: 'flex', gap: 'var(--ws-space-3)', alignItems: 'center', borderTop: '0.5px solid var(--ws-border)', paddingTop: 10 }}>
         <button className="ws-linkish" onClick={() => setPwOpen((v) => !v)} style={linkBtn}>
           {pwOpen ? 'Close password' : 'Set password'}
+        </button>
+        <button className="ws-linkish" onClick={() => void emailReset()} style={linkBtn} disabled={busy}>
+          Email reset link
         </button>
         <div style={{ flex: 1 }} />
         {self ? (
