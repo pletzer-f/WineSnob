@@ -9,7 +9,7 @@ import type {
   ViewMode,
   Wish,
 } from '@/domain/types'
-import type { Snapshot } from '@/domain/portfolio'
+import type { BottlePrice, Snapshot } from '@/domain/portfolio'
 
 /** The persisted portion of the store — one user's whole dataset. */
 export interface PersistData {
@@ -28,8 +28,10 @@ export interface PersistData {
   onboarded: boolean
   /** Daily history of the cellar's worth (powers the portfolio chart). */
   snapshots?: Snapshot[]
-  /** AI desk note across the whole cellar, with its as-of date. */
-  portfolioNote?: { text: string; asOf: string } | null
+  /** Per-bottle price history from valuations (powers time-ranged movers). */
+  bottlePrices?: BottlePrice[]
+  /** AI desk note with its as-of date and the figures it was written against. */
+  portfolioNote?: { text: string; asOf: string; value?: number; drinks?: number } | null
 }
 
 const KEY = 'winesnob:snapshot:v1'

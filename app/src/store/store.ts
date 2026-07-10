@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { askSommelier, valueCellar, type SomPick } from '@/data/ai'
 import { hasSupabase } from '@/lib/supabase'
-import { bottleValue } from '@/domain/valuation'
-import { allocation, costBasis, movers, type Snapshot } from '@/domain/portfolio'
+import { bottleValue, unitValueNow } from '@/domain/valuation'
+import { allocation, costBasis, movers, totalReturn, type BottlePrice, type Snapshot } from '@/domain/portfolio'
 import type {
   Account,
   Bottle,
@@ -29,6 +29,7 @@ import {
   seedCellars,
   seedCustomCollections,
   seedDrinks,
+  seedBottlePrices,
   seedPortfolioNote,
   seedSnapshots,
   seedWishlist,
@@ -219,7 +220,9 @@ export interface StoreState {
 
   // portfolio
   snapshots: Snapshot[]
-  portfolioNote: { text: string; asOf: string } | null
+  bottlePrices: BottlePrice[]
+  portfolioNote: { text: string; asOf: string; value?: number; drinks?: number } | null
+  deskNoteBusy: boolean
 
   // admin console
   adminOpen: boolean
@@ -327,6 +330,8 @@ export interface StoreActions {
   // portfolio
   recordSnapshot: () => void
   refreshDeskNote: () => Promise<void>
+  /** Regenerate the desk note when the figures it cites have moved. */
+  ensureDeskNoteFresh: () => void
 
   // admin console
   openAdmin: () => void
@@ -501,6 +506,7 @@ function snapshot(s: StoreState): PersistData {
     measure: s.measure,
     onboarded: s.onboarded,
     snapshots: s.snapshots,
+    bottlePrices: s.bottlePrices,
     portfolioNote: s.portfolioNote,
   }
 }
@@ -513,6 +519,12 @@ let remoteSync: ((userId: string, data: PersistData) => void) | null = null
 let snapshotSink: ((userId: string, snap: Snapshot, currency: string) => void) | null = null
 export function setSnapshotSink(fn: ((userId: string, snap: Snapshot, currency: string) => void) | null) {
   snapshotSink = fn
+}
+
+// Per-bottle price history sink (same direct, append-only pattern).
+let priceSink: ((userId: string, rows: BottlePrice[]) => void) | null = null
+export function setPriceSink(fn: ((userId: string, rows: BottlePrice[]) => void) | null) {
+  priceSink = fn
 }
 export function setRemoteSync(fn: ((userId: string, data: PersistData) => void) | null) {
   remoteSync = fn
@@ -568,7 +580,9 @@ const initialState: StoreState = {
   valuationConfigured: null,
   valuationInfo: null,
   snapshots: [],
+  bottlePrices: [],
   portfolioNote: null,
+  deskNoteBusy: false,
   adminOpen: false,
   pwRecovery: false,
   wishOpen: false,
@@ -633,6 +647,7 @@ export const useStore = create<Store>((set, get) => {
         measure: data.measure || 'bottles',
         onboarded: !!data.onboarded,
         snapshots: data.snapshots || [],
+        bottlePrices: data.bottlePrices || [],
         portfolioNote: data.portfolioNote || null,
         ready: true,
       })
@@ -656,6 +671,7 @@ export const useStore = create<Store>((set, get) => {
         onboarded: true,
         screen: 'cellar',
         snapshots: seedSnapshots(),
+        bottlePrices: seedBottlePrices(),
         portfolioNote: seedPortfolioNote(),
       })
       get()._persist()
@@ -824,6 +840,16 @@ export const useStore = create<Store>((set, get) => {
             return r ? { ...b, marketUnit: r.unit, marketLow: r.low, marketHigh: r.high, marketSource: r.source, marketAsOf: r.asOf, marketRead: r.read } : b
           }),
         }))
+        // Append today's per-bottle prices to the history that powers
+        // time-ranged movers.
+        const day = todayISO()
+        const priceRows: BottlePrice[] = res.results.map((r) => ({ bottleId: r.id, day, unit: r.unit }))
+        if (priceRows.length) {
+          set((state) => ({
+            bottlePrices: [...state.bottlePrices.filter((p) => !(p.day === day && priceRows.some((n) => n.bottleId === p.bottleId))), ...priceRows],
+          }))
+          if (get().userId && priceSink) priceSink(get().userId!, priceRows)
+        }
         get()._persist()
         get().recordSnapshot()
         void get().refreshDeskNote()
@@ -862,15 +888,20 @@ export const useStore = create<Store>((set, get) => {
     },
     refreshDeskNote: async () => {
       const s = get()
-      if (!hasSupabase || !s.bottles.length) return
+      if (!hasSupabase || !s.bottles.length || s.deskNoteBusy) return
+      set({ deskNoteBusy: true })
       try {
         const cb = costBasis(s.bottles)
+        const tr = totalReturn(s.bottles, s.drinks)
         const mv = movers(s.bottles, 2)
         const data = {
           currency: s.settings.currency,
-          marketValue: Math.round(cb.totalMarket),
-          invested: Math.round(cb.invested),
-          returnPct: cb.gainPct == null ? null : Math.round(cb.gainPct * 10) / 10,
+          cellarValueNow: Math.round(cb.totalMarket),
+          investedAllTime: Math.round(tr.investedAll),
+          valueEnjoyedInGlasses: Math.round(tr.enjoyedAll),
+          totalReturnPctInclEnjoyed: tr.gainPct == null ? null : Math.round(tr.gainPct * 10) / 10,
+          bottlesHeld: s.bottles.reduce((a, b) => a + b.quantity, 0),
+          poursLogged: s.drinks.length,
           topGainers: mv.up.map((m) => `${m.name} ${m.vintage} ${m.pct >= 0 ? '+' : ''}${Math.round(m.pct)}%`),
           topLosers: mv.down.map((m) => `${m.name} ${m.vintage} ${Math.round(m.pct)}%`),
           allocation: allocation(s.bottles, 'region', 4).map((a) => `${a.label} ${Math.round(a.pct)}%`),
@@ -879,18 +910,40 @@ export const useStore = create<Store>((set, get) => {
           [
             {
               role: 'user',
-              text: `Write the desk note for my wine portfolio: ONE calm paragraph, at most 45 words, covering its value, the notable movers and the allocation tilt. No greeting, no questions, no recommendations, no picks, no em dashes. Data: ${JSON.stringify(data)}`,
+              text: `Write the desk note for my wine portfolio: ONE calm paragraph, at most 45 words. Cover the cellar's current value, the all-in return including bottles already enjoyed (drinking is a withdrawal, never a loss), notable movers and the allocation tilt. No greeting, no questions, no recommendations, no picks, no em dashes. Data: ${JSON.stringify(data)}`,
             },
           ],
           { purpose: 'portfolio desk note' },
         )
         if (res.reply) {
-          set({ portfolioNote: { text: res.reply, asOf: todayISO() } })
+          set({
+            portfolioNote: {
+              text: res.reply,
+              asOf: todayISO(),
+              value: Math.round(cb.totalMarket),
+              drinks: s.drinks.length,
+            },
+          })
           get()._persist()
         }
       } catch (e) {
         console.error('desk note', e)
+      } finally {
+        set({ deskNoteBusy: false })
       }
+    },
+    ensureDeskNoteFresh: () => {
+      const s = get()
+      if (!hasSupabase || !s.bottles.length || s.deskNoteBusy) return
+      const n = s.portfolioNote
+      if (!n) {
+        void get().refreshDeskNote()
+        return
+      }
+      const total = Math.round(s.bottles.reduce((a, b) => a + bottleValue(b), 0))
+      const valueMoved = n.value != null && n.value > 0 ? Math.abs(total - n.value) / n.value > 0.02 : n.value == null
+      const drinksMoved = n.drinks != null && n.drinks !== s.drinks.length
+      if (valueMoved || drinksMoved) void get().refreshDeskNote()
     },
 
     // ---- admin console ----
@@ -1372,6 +1425,10 @@ function recordDrink(id: string | null, detail?: Partial<DrinkForm>) {
     rating: detail?.rating || 0,
     note: detail?.note || '',
     buyAgain: !!detail?.buyAgain,
+    // Capture the realized value and cost at the moment of the pour, so the
+    // portfolio treats drinking as a withdrawal rather than a loss.
+    valueAtDrink: Math.round(unitValueNow(b)),
+    paidAtDrink: b.paid != null && b.paid > 0 ? b.paid : undefined,
   }
   const withBuyAgain = bottles.map((x) => (x.id === id ? { ...x, buyAgain: x.buyAgain || rec.buyAgain } : x))
   useStore.setState({ bottles: withBuyAgain, drinks: [rec, ...s.drinks], drinkLogOpen: false })

@@ -1,7 +1,14 @@
 // Portfolio calculators: the broker-style view of a cellar. All pure.
 
 import type { Bottle, Drink } from './types'
-import { bottleValue, unitValueNow } from './valuation'
+import { bottleValue, unitPrice, unitValueNow } from './valuation'
+
+/** One recorded per-bottle price point (written with each valuation). */
+export interface BottlePrice {
+  bottleId: string
+  day: string
+  unit: number
+}
 
 /** One recorded day of cellar worth (the history behind the value chart). */
 export interface Snapshot {
@@ -36,15 +43,27 @@ function shiftDay(today: string, days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
-/** The value series for a chart range, oldest first, plus its change. */
-export function seriesFor(snapshots: Snapshot[], range: RangeKey, today: string): Series {
+/** The value series for a chart range, oldest first, plus its change.
+ * When `consumed` events are given (value enjoyed per day), each point adds
+ * back everything drunk up to that day, so consumption reads as a withdrawal
+ * rather than a loss and the performance line never dips on a pour. */
+export function seriesFor(snapshots: Snapshot[], range: RangeKey, today: string, consumed?: { day: string; value: number }[]): Series {
   const def = RANGES.find((r) => r.key === range)
   const cutoff = def?.days != null ? shiftDay(today, def.days) : ''
+  const events = (consumed || []).slice().sort((a, b) => a.day.localeCompare(b.day))
+  const enjoyedUpTo = (day: string) => {
+    let sum = 0
+    for (const e of events) {
+      if (e.day > day) break
+      sum += e.value
+    }
+    return sum
+  }
   const points = snapshots
     .filter((s) => s.day >= cutoff)
     .slice()
     .sort((a, b) => a.day.localeCompare(b.day))
-    .map((s) => ({ day: s.day, value: s.total }))
+    .map((s) => ({ day: s.day, value: s.total + (consumed ? enjoyedUpTo(s.day) : 0) }))
   if (points.length < 2) return { points, delta: 0, deltaPct: null }
   const first = points[0].value
   const last = points[points.length - 1].value
@@ -91,6 +110,49 @@ export function costBasis(bottles: Bottle[]): CostBasis {
   }
 }
 
+/** The all-in performance view: what was ever invested (still held plus
+ * already drunk) against what it is worth now (cellar plus value enjoyed).
+ * Drinking a bottle moves value from "cellar" to "enjoyed"; it never reads
+ * as a loss. Percentages run over the costed universe only. */
+export interface TotalReturn {
+  /** Cost of current holdings with a known price plus cost of drunk bottles. */
+  investedAll: number
+  /** Market worth today of the costed holdings. */
+  marketCosted: number
+  /** Realized value of drunk bottles that carry a known cost. */
+  enjoyedCosted: number
+  /** Realized value of everything drunk, costed or not (estimates included). */
+  enjoyedAll: number
+  gain: number
+  gainPct: number | null
+}
+
+export function totalReturn(bottles: Bottle[], drinks: Drink[]): TotalReturn {
+  const cb = costBasis(bottles)
+  const byId = new Map(bottles.map((b) => [b.id, b]))
+  let investedDrunk = 0
+  let enjoyedCosted = 0
+  let enjoyedAll = 0
+  drinks.forEach((d) => {
+    const value = d.valueAtDrink ?? (d.bottleId && byId.get(d.bottleId) ? unitValueNow(byId.get(d.bottleId)!) : 0)
+    enjoyedAll += value
+    if (d.paidAtDrink != null && d.paidAtDrink > 0) {
+      investedDrunk += d.paidAtDrink
+      enjoyedCosted += value
+    }
+  })
+  const investedAll = cb.invested + investedDrunk
+  const gain = cb.marketOfInvested + enjoyedCosted - investedAll
+  return {
+    investedAll,
+    marketCosted: cb.marketOfInvested,
+    enjoyedCosted,
+    enjoyedAll,
+    gain,
+    gainPct: investedAll > 0 ? (gain / investedAll) * 100 : null,
+  }
+}
+
 export interface Mover {
   id: string
   name: string
@@ -125,13 +187,64 @@ export function movers(bottles: Bottle[], n = 3): { up: Mover[]; down: Mover[] }
   }
 }
 
+/** Top movers over a chart range. For Max the baseline is the purchase
+ * price; for time ranges it is the bottle's recorded price at (or nearest
+ * before) the start of the window, from the per-valuation price history. */
+export function moversFor(bottles: Bottle[], prices: BottlePrice[], range: RangeKey, today: string, n = 3): { up: Mover[]; down: Mover[] } {
+  if (range === 'MAX') return movers(bottles, n)
+  const def = RANGES.find((r) => r.key === range)
+  const cutoff = def?.days != null ? shiftDay(today, def.days) : ''
+  const byBottle = new Map<string, BottlePrice[]>()
+  prices
+    .slice()
+    .sort((a, b) => a.day.localeCompare(b.day))
+    .forEach((p) => {
+      const list = byBottle.get(p.bottleId) || []
+      list.push(p)
+      byBottle.set(p.bottleId, list)
+    })
+  const rows: Mover[] = []
+  bottles.forEach((b) => {
+    if (b.quantity <= 0) return
+    const hist = byBottle.get(b.id)
+    if (!hist || hist.length === 0) return
+    // Latest record at or before the window start; else the earliest record
+    // inside the window (a partial period while history accrues).
+    let base: BottlePrice | undefined
+    for (const p of hist) {
+      if (p.day <= cutoff) base = p
+      else break
+    }
+    if (!base) base = hist[0]
+    if (!base || base.unit <= 0 || base.day >= today) return
+    // History stores per-standard-bottle prices, so compare on the same
+    // basis; the absolute figure scales to the whole holding's worth.
+    const now = unitPrice(b)
+    if (now <= 0) return
+    const pct = ((now - base.unit) / base.unit) * 100
+    if (Math.abs(pct) < 0.05) return
+    rows.push({ id: b.id, name: b.name, vintage: String(b.vintage), pct, abs: (bottleValue(b) * (now - base.unit)) / now })
+  })
+  rows.sort((a, b) => b.pct - a.pct)
+  return {
+    up: rows.filter((r) => r.pct > 0).slice(0, n),
+    down: rows
+      .filter((r) => r.pct < 0)
+      .slice(-n)
+      .reverse(),
+  }
+}
+
 export interface Realized {
   count: number
   countYear: number
-  /** Estimated worth of what was drunk, from each linked bottle's price. */
+  /** Worth of what was drunk: captured at the pour, estimated for old pours. */
   value: number
-  /** How many pours could be valued (had a linkable bottle). */
+  /** How many pours could be valued. */
   valued: number
+  /** Realized gain over cost, where both were known at the pour. */
+  gain: number
+  gainKnown: boolean
 }
 
 export function realized(drinks: Drink[], bottles: Bottle[], year: number): Realized {
@@ -139,15 +252,21 @@ export function realized(drinks: Drink[], bottles: Bottle[], year: number): Real
   let value = 0
   let valued = 0
   let countYear = 0
+  let gain = 0
+  let gainKnown = false
   drinks.forEach((d) => {
     if (d.date && parseInt(d.date.slice(0, 4), 10) === year) countYear += 1
-    const b = d.bottleId ? byId.get(d.bottleId) : undefined
-    if (b) {
-      value += unitValueNow(b)
+    const v = d.valueAtDrink ?? (d.bottleId && byId.get(d.bottleId) ? unitValueNow(byId.get(d.bottleId)!) : null)
+    if (v != null) {
+      value += v
       valued += 1
     }
+    if (d.valueAtDrink != null && d.paidAtDrink != null && d.paidAtDrink > 0) {
+      gain += d.valueAtDrink - d.paidAtDrink
+      gainKnown = true
+    }
   })
-  return { count: drinks.length, countYear, value, valued }
+  return { count: drinks.length, countYear, value, valued, gain, gainKnown }
 }
 
 export interface Slice {

@@ -1,8 +1,8 @@
 import { supabase } from '@/lib/supabase'
-import { setRemoteSync, setSnapshotSink } from '@/store/store'
+import { setPriceSink, setRemoteSync, setSnapshotSink } from '@/store/store'
 import type { PersistData } from '@/data/sync'
 import type { Bottle, Drink, Vintage, Wish } from '@/domain/types'
-import type { Snapshot } from '@/domain/portfolio'
+import type { BottlePrice, Snapshot } from '@/domain/portfolio'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // The generated Supabase types are loose until `generate_typescript_types`
@@ -38,6 +38,8 @@ function profileRow(userId: string, d: PersistData) {
     onboarded: d.onboarded,
     portfolio_note: d.portfolioNote?.text ?? null,
     portfolio_note_at: d.portfolioNote?.asOf ?? null,
+    portfolio_note_value: d.portfolioNote?.value ?? null,
+    portfolio_note_drinks: d.portfolioNote?.drinks ?? null,
     updated_at: new Date().toISOString(),
   }
 }
@@ -55,6 +57,7 @@ const drinkRow = (userId: string, r: Drink) => ({
   producer: r.producer, vintage: String(r.vintage), region: r.region, area: r.area, colour: r.colour,
   format: r.format, drink_from: r.drinkFrom ?? null, drink_to: r.drinkTo ?? null, date: r.date,
   occasion: r.occasion, companions: r.companions, rating: r.rating, note: r.note, buy_again: !!r.buyAgain,
+  value_at_drink: r.valueAtDrink ?? null, paid_at_drink: r.paidAtDrink ?? null,
 })
 const wishRow = (userId: string, w: Wish) => ({
   id: w.id, user_id: userId, name: w.name, producer: w.producer, region: w.region, vintage: w.vintage,
@@ -82,6 +85,8 @@ const drinkFromRow = (r: any): Drink => ({
   vintage: parseVintage(r.vintage), region: r.region, area: r.area, colour: r.colour, format: r.format,
   drinkFrom: r.drink_from ?? undefined, drinkTo: r.drink_to ?? undefined, date: r.date,
   occasion: r.occasion, companions: r.companions || '', rating: r.rating || 0, note: r.note || '', buyAgain: !!r.buy_again,
+  valueAtDrink: r.value_at_drink == null ? undefined : Number(r.value_at_drink),
+  paidAtDrink: r.paid_at_drink == null ? undefined : Number(r.paid_at_drink),
 })
 const wishFromRow = (r: any): Wish => ({
   id: r.id, name: r.name, producer: r.producer || '', region: r.region || '', vintage: r.vintage || '',
@@ -91,7 +96,7 @@ const wishFromRow = (r: any): Wish => ({
 /** Load a user's full dataset. Returns null when the user has no profile yet
  * (a fresh account that still needs onboarding). */
 export async function pullUserData(userId: string): Promise<PersistData | null> {
-  const [profile, cellars, bottles, drinks, wishlist, collections, snapshots] = await Promise.all([
+  const [profile, cellars, bottles, drinks, wishlist, collections, snapshots, prices] = await Promise.all([
     db.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
     db.from('cellars').select('*').eq('user_id', userId).order('position'),
     db.from('bottles').select('*').eq('user_id', userId),
@@ -99,6 +104,7 @@ export async function pullUserData(userId: string): Promise<PersistData | null> 
     db.from('wishlist').select('*').eq('user_id', userId),
     db.from('custom_collections').select('*').eq('user_id', userId),
     db.from('valuation_snapshots').select('day,total,invested,bottles').eq('user_id', userId).order('day', { ascending: true }).limit(1100),
+    db.from('bottle_prices').select('bottle_id,day,unit').eq('user_id', userId).order('day', { ascending: true }).limit(8000),
   ])
   const p = profile.data
   if (!p) return null
@@ -126,8 +132,22 @@ export async function pullUserData(userId: string): Promise<PersistData | null> 
       invested: s.invested == null ? null : Number(s.invested),
       bottles: s.bottles || 0,
     })),
-    portfolioNote: p.portfolio_note ? { text: p.portfolio_note, asOf: p.portfolio_note_at || '' } : null,
+    bottlePrices: (prices.data || []).map((r: any) => ({ bottleId: r.bottle_id, day: r.day, unit: Number(r.unit) })),
+    portfolioNote: p.portfolio_note
+      ? {
+          text: p.portfolio_note,
+          asOf: p.portfolio_note_at || '',
+          value: p.portfolio_note_value == null ? undefined : Number(p.portfolio_note_value),
+          drinks: p.portfolio_note_drinks == null ? undefined : Number(p.portfolio_note_drinks),
+        }
+      : null,
   }
+}
+
+/** Record per-bottle prices for one valuation day (upsert, append-only). */
+export async function saveBottlePricesRemote(userId: string, rows: BottlePrice[]): Promise<void> {
+  if (!rows.length) return
+  await db.from('bottle_prices').upsert(rows.map((r) => ({ user_id: userId, bottle_id: r.bottleId, day: r.day, unit: r.unit })))
 }
 
 /** Record one day's cellar worth (upsert; the latest write for a day wins).
@@ -156,6 +176,9 @@ export function startRemoteSync() {
   })
   setSnapshotSink((userId, snap, currency) => {
     void saveSnapshotRemote(userId, snap, currency).catch((e) => console.error('Snapshot sync failed', e))
+  })
+  setPriceSink((userId, rows) => {
+    void saveBottlePricesRemote(userId, rows).catch((e) => console.error('Price history sync failed', e))
   })
 }
 

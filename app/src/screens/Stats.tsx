@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { SegmentedControl, SectionHeader, BarChart, DrinkWindow, Tag } from 'winesnob-design-system'
 import { useStore } from '@/store/store'
 import { bottleValue, unitValueNow } from '@/domain/valuation'
@@ -7,9 +7,10 @@ import {
   allocation,
   concentration,
   costBasis,
-  movers,
+  moversFor,
   realized,
   seriesFor,
+  totalReturn,
   windowLadder,
   type AllocationDim,
   type RangeKey,
@@ -31,6 +32,14 @@ export function Stats() {
   const [range, setRange] = useState<RangeKey>('6M')
   const [dim, setDim] = useState<AllocationDim>('region')
   const [hover, setHover] = useState<number | null>(null)
+  const [withEnjoyed, setWithEnjoyed] = useState(false)
+  const [moverRange, setMoverRange] = useState<RangeKey>('MAX')
+
+  // The desk note quietly rewrites itself when the figures it cites have
+  // moved (a pour logged, a valuation shifted) since it was written.
+  useEffect(() => {
+    useStore.getState().ensureDeskNoteFresh()
+  }, [])
 
   const today = todayISO()
   const thisYear = parseInt(today.slice(0, 4), 10)
@@ -38,12 +47,19 @@ export function Stats() {
 
   const model = useMemo(() => {
     const cb = costBasis(bottles)
-    const mv = movers(bottles, 3)
+    const tr = totalReturn(bottles, s.drinks)
+    const mv = moversFor(bottles, s.bottlePrices, moverRange, today, 3)
     const rz = realized(s.drinks, bottles, thisYear)
     const alloc = allocation(bottles, dim)
     const ladder = windowLadder(bottles, thisYear)
     const conc = concentration(bottles)
-    const series = seriesFor(s.snapshots, range, today)
+    // Consumption events let the performance line treat every pour as a
+    // withdrawal: value moves from the cellar line to the enjoyed line.
+    const consumed = s.drinks
+      .filter((d) => d.date && (d.valueAtDrink != null || d.bottleId))
+      .map((d) => ({ day: d.date, value: d.valueAtDrink ?? 0 }))
+      .filter((e) => e.value > 0)
+    const series = seriesFor(s.snapshots, range, today, withEnjoyed ? consumed : undefined)
 
     const positions = bottles
       .map((b) => {
@@ -80,12 +96,13 @@ export function Stats() {
       .slice()
       .sort((a, b) => (a.drinkTo || 0) - (b.drinkTo || 0))
       .slice(0, 4)
-      .map((b) => ({ name: b.name, region: b.area, from: b.drinkFrom!, to: b.drinkTo!, status: b.status }))
+      .map((b) => ({ id: b.id, name: b.name, region: b.area, from: b.drinkFrom!, to: b.drinkTo!, status: b.status }))
 
-    return { cb, mv, rz, alloc, ladder, conc, series, positions, valSource, valAsOf, readiness, windows }
-  }, [bottles, s.drinks, s.snapshots, dim, range, thisYear, today])
+    return { cb, tr, mv, rz, alloc, ladder, conc, series, positions, valSource, valAsOf, readiness, windows }
+  }, [bottles, s.drinks, s.snapshots, s.bottlePrices, dim, range, moverRange, withEnjoyed, thisYear, today])
 
-  const { cb, mv, rz, alloc, ladder, conc, series, positions } = model
+  const { cb, tr, mv, rz, alloc, ladder, conc, series, positions } = model
+  const heroValue = withEnjoyed ? cb.totalMarket + tr.enjoyedAll : cb.totalMarket
 
   // ---- chart geometry ----
   const pts = series.points
@@ -117,7 +134,6 @@ export function Stats() {
 
   const up = series.delta >= 0
   const deltaColor = up ? 'var(--ws-green)' : 'var(--ws-bordeaux)'
-  const gainUp = cb.gain >= 0
 
   const empty = bottles.length === 0
 
@@ -132,9 +148,9 @@ export function Stats() {
       <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-4)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--ws-space-3)', flexWrap: 'wrap' }}>
           <div>
-            <div style={microLabel}>Portfolio value</div>
+            <div style={microLabel}>{withEnjoyed ? 'Value incl. enjoyed' : 'Portfolio value'}</div>
             <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 40, lineHeight: 1, color: 'var(--ws-ink)' }}>
-              {money(active ? active.pt.value : cb.totalMarket)}
+              {money(Math.round(active ? active.pt.value : heroValue))}
             </div>
             <div style={{ marginTop: 8, fontSize: 13.5, fontWeight: 500, color: series.deltaPct == null ? 'var(--ws-muted)' : deltaColor }}>
               {active
@@ -146,12 +162,24 @@ export function Stats() {
                   : `${up ? '+' : '−'}${money(Math.abs(Math.round(series.delta)))} (${fmtPct(series.deltaPct)}) · ${RANGES.find((r) => r.key === range)?.label}`}
             </div>
           </div>
-          <div className="ws-folio-ranges">
-            {RANGES.map((r) => (
-              <button key={r.key} className={`ws-folio-range${range === r.key ? ' ws-folio-range--on' : ''}`} onClick={() => setRange(r.key)}>
-                {r.label}
-              </button>
-            ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+            <div className="ws-folio-ranges">
+              {RANGES.map((r) => (
+                <button key={r.key} className={`ws-folio-range${range === r.key ? ' ws-folio-range--on' : ''}`} onClick={() => setRange(r.key)}>
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            {tr.enjoyedAll > 0 && (
+              <div className="ws-folio-ranges">
+                <button className={`ws-folio-range${!withEnjoyed ? ' ws-folio-range--on' : ''}`} onClick={() => setWithEnjoyed(false)}>
+                  Cellar
+                </button>
+                <button className={`ws-folio-range${withEnjoyed ? ' ws-folio-range--on' : ''}`} onClick={() => setWithEnjoyed(true)}>
+                  With enjoyed
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -193,9 +221,11 @@ export function Stats() {
         )}
 
         <div style={{ fontSize: 12, color: 'var(--ws-muted)' }}>
-          {model.valSource
-            ? `Live market pricing via ${model.valSource}${model.valAsOf ? `, as of ${model.valAsOf}` : ''}. History recorded ${pts.length > 0 ? `since ${s.snapshots[0]?.day}` : 'from today'}.`
-            : `Your recorded values. History recorded ${s.snapshots.length > 0 ? `since ${s.snapshots[0]?.day}` : 'from today'}; run a valuation in Settings for live market pricing.`}
+          {withEnjoyed
+            ? 'Cellar value plus everything already drunk at its worth when poured. A bottle enjoyed is a withdrawal, not a loss, so this line never dips on a pour.'
+            : model.valSource
+              ? `Live market pricing via ${model.valSource}${model.valAsOf ? `, as of ${model.valAsOf}` : ''}. History recorded ${pts.length > 0 ? `since ${s.snapshots[0]?.day}` : 'from today'}.`
+              : `Your recorded values. History recorded ${s.snapshots.length > 0 ? `since ${s.snapshots[0]?.day}` : 'from today'}; run a valuation in Settings for live market pricing.`}
         </div>
       </div>
 
@@ -203,14 +233,14 @@ export function Stats() {
       {!empty && (
         <div className="ws-stat-duo ws-folio-duo">
           <div style={card}>
-            <div style={microLabel}>Invested</div>
-            <div style={bigFigure}>{money(Math.round(cb.invested))}</div>
+            <div style={microLabel}>Invested · all time</div>
+            <div style={bigFigure}>{money(Math.round(tr.investedAll))}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7, flexWrap: 'wrap' }}>
-              <Tag tone={gainUp ? 'ready' : 'accent'}>{`${gainUp ? '+' : '−'}${money(Math.abs(Math.round(cb.gain)))}${cb.gainPct != null ? ` (${fmtPct(cb.gainPct)})` : ''}`}</Tag>
+              <Tag tone={tr.gain >= 0 ? 'ready' : 'accent'}>{`${tr.gain >= 0 ? '+' : '−'}${money(Math.abs(Math.round(tr.gain)))}${tr.gainPct != null ? ` (${fmtPct(tr.gainPct)})` : ''}`}</Tag>
             </div>
             <div style={hintText}>
-              {cb.invested > 0
-                ? `now worth ${money(Math.round(cb.marketOfInvested))}${cb.coverage < 0.999 ? `, across the ${Math.round(cb.coverage * 100)}% of bottles with a known cost` : ''}`
+              {tr.investedAll > 0
+                ? `total return incl. enjoyed: ${money(Math.round(tr.marketCosted))} in the cellar + ${money(Math.round(tr.enjoyedCosted))} drunk${cb.coverage < 0.999 ? ', over bottles with a known cost' : ''}`
                 : 'add what you paid to track returns'}
             </div>
           </div>
@@ -218,7 +248,7 @@ export function Stats() {
             <div style={microLabel}>Realized</div>
             <div style={bigFigure}>{rz.countYear}</div>
             <div style={hintText}>
-              {`bottles enjoyed in ${thisYear} · ${rz.count} all time${rz.valued > 0 ? ` · ≈ ${money(Math.round(rz.value))} of value drunk` : ''}`}
+              {`bottles enjoyed in ${thisYear} · ${rz.count} all time${rz.valued > 0 ? ` · ${money(Math.round(rz.value))} of value drunk` : ''}${rz.gainKnown ? ` · ${rz.gain >= 0 ? '+' : '−'}${money(Math.abs(Math.round(rz.gain)))} over cost` : ''}`}
             </div>
           </div>
         </div>
@@ -234,10 +264,30 @@ export function Stats() {
         </div>
       )}
 
-      {/* ---- movers ---- */}
-      {(mv.up.length > 0 || mv.down.length > 0) && (
+      {/* ---- top movers ---- */}
+      {!empty && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-3)' }}>
-          <SectionHeader title="Movers" count="vs what you paid" />
+          <SectionHeader
+            title="Top movers"
+            count={moverRange === 'MAX' ? 'since purchase' : `over ${RANGES.find((r) => r.key === moverRange)?.label}`}
+            action={
+              <div className="ws-folio-ranges">
+                {RANGES.map((r) => (
+                  <button key={r.key} className={`ws-folio-range${moverRange === r.key ? ' ws-folio-range--on' : ''}`} onClick={() => setMoverRange(r.key)}>
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            }
+          />
+          {mv.up.length === 0 && mv.down.length === 0 && (
+            <div style={{ fontSize: 13, color: 'var(--ws-muted)', lineHeight: 1.55, padding: '2px 2px' }}>
+              {moverRange === 'MAX'
+                ? 'Add what you paid to your bottles and their moves appear here.'
+                : 'Price history builds with each valuation, so ranged movers appear after a few refreshes. Max shows moves since purchase in the meantime.'}
+            </div>
+          )}
+          {(mv.up.length > 0 || mv.down.length > 0) && (
           <div style={{ ...card, padding: '4px var(--ws-space-5)' }}>
             {[...mv.up, ...mv.down].map((m) => {
               const pos = m.pct >= 0
@@ -256,6 +306,7 @@ export function Stats() {
               )
             })}
           </div>
+          )}
         </div>
       )}
 
@@ -358,7 +409,7 @@ export function Stats() {
             <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-4)', marginTop: 'var(--ws-space-2)' }}>
               <div style={{ fontSize: 13, color: 'var(--ws-muted)' }}>Drinking soonest</div>
               {model.windows.map((w) => (
-                <div key={w.name} className="ws-window-row">
+                <div key={w.id} className="ws-window-row">
                   <div style={{ minWidth: 0 }}>
                     <div className="ws-clamp2" style={{ fontFamily: 'var(--ws-font-display)', fontSize: 16, color: 'var(--ws-ink)', lineHeight: 1.3 }}>{w.name}</div>
                     <div style={{ fontSize: 12, color: 'var(--ws-muted)' }}>{w.region}</div>

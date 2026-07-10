@@ -1,5 +1,5 @@
 import type { Bottle, Cellar, CustomCollection, Drink, Wish } from '@/domain/types'
-import type { Snapshot } from '@/domain/portfolio'
+import type { BottlePrice, Snapshot } from '@/domain/portfolio'
 import { bottleValue } from '@/domain/valuation'
 import { todayISO } from '@/lib/date'
 
@@ -35,13 +35,13 @@ export function seedBottles(): Bottle[] {
 
 export function seedDrinks(): Drink[] {
   return [
-    { id: 'd1', bottleId: 'cristal', cellarId: 'main', name: 'Cristal', producer: 'Louis Roederer', vintage: 2014, region: 'Champagne', area: 'Champagne', colour: 'sparkling', format: 'standard', drinkFrom: 2024, drinkTo: 2034, date: '2026-05-18', occasion: 'celebration', companions: 'Priya & Tom', rating: 5, note: 'Anniversary. Chalky, taut, endless. Everything a great Champagne should be.', buyAgain: true },
-    { id: 'd2', bottleId: 'sancerre', cellarId: 'rack', name: 'Sancerre Les Romains', producer: 'Domaine Vacheron', vintage: 2022, region: 'Loire', area: 'Loire', colour: 'white', format: 'standard', drinkFrom: 2024, drinkTo: 2028, date: '2026-04-27', occasion: 'everyday', companions: '', rating: 4, note: 'Tuesday apéritif on the terrace. Flinty and bright.', buyAgain: true },
-    { id: 'd3', bottleId: 'hermitage', cellarId: 'main', name: 'Hermitage La Chapelle', producer: 'Paul Jaboulet Aîné', vintage: 2010, region: 'Northern Rhône', area: 'Rhône', colour: 'red', format: 'standard', drinkFrom: 2020, drinkTo: 2040, date: '2026-02-14', occasion: 'dinner', companions: 'Just us', rating: 5, note: 'Decanted two hours. Bacon fat and violets, stunning with the lamb.', buyAgain: false },
-    { id: 'd4', bottleId: 'brunello', cellarId: 'main', name: 'Brunello di Montalcino', producer: 'Biondi-Santi', vintage: 2016, region: 'Tuscany', area: 'Tuscany', colour: 'red', format: 'standard', drinkFrom: 2026, drinkTo: 2046, date: '2025-12-31', occasion: 'celebration', companions: 'The whole table', rating: 5, note: 'New Year. Opened a touch early but glorious. Sour cherry and leather.', buyAgain: true },
-    { id: 'd5', bottleId: 'puligny', cellarId: 'main', name: 'Puligny-Montrachet 1er Cru', producer: 'Domaine Leflaive', vintage: 2011, region: 'Burgundy', area: 'Burgundy', colour: 'white', format: 'standard', drinkFrom: 2015, drinkTo: 2021, date: '2025-11-09', occasion: 'dinner', companions: 'Marcus', rating: 3, note: 'Held it a year too long. Still lovely but past its very best. Lesson learned.', buyAgain: false },
-    { id: 'd6', bottleId: 'chablis', cellarId: 'main', name: 'Chablis Grand Cru Les Clos', producer: 'Domaine Raveneau', vintage: 2018, region: 'Burgundy', area: 'Burgundy', colour: 'white', format: 'standard', drinkFrom: 2024, drinkTo: 2038, date: '2025-09-22', occasion: 'restaurant', companions: 'Client dinner', rating: 4, note: 'At Le Bernardin. Oyster-shell and tension. Worth every euro.', buyAgain: true },
-    { id: 'd7', bottleId: 'coterotie', cellarId: 'rack', name: 'Côte-Rôtie Brune et Blonde', producer: 'E. Guigal', vintage: 2018, region: 'Northern Rhône', area: 'Rhône', colour: 'red', format: 'standard', drinkFrom: 2025, drinkTo: 2035, date: '2025-06-03', occasion: 'everyday', companions: '', rating: 4, note: 'Just coming together. Smoked meat and blackberry.', buyAgain: false },
+    { id: 'd1', bottleId: 'cristal', cellarId: 'main', name: 'Cristal', producer: 'Louis Roederer', vintage: 2014, region: 'Champagne', area: 'Champagne', colour: 'sparkling', format: 'standard', drinkFrom: 2024, drinkTo: 2034, date: '2026-05-18', occasion: 'celebration', companions: 'Priya & Tom', rating: 5, note: 'Anniversary. Chalky, taut, endless. Everything a great Champagne should be.', buyAgain: true, valueAtDrink: 290, paidAtDrink: 191 },
+    { id: 'd2', bottleId: 'sancerre', cellarId: 'rack', name: 'Sancerre Les Romains', producer: 'Domaine Vacheron', vintage: 2022, region: 'Loire', area: 'Loire', colour: 'white', format: 'standard', drinkFrom: 2024, drinkTo: 2028, date: '2026-04-27', occasion: 'everyday', companions: '', rating: 4, note: 'Tuesday apéritif on the terrace. Flinty and bright.', buyAgain: true, valueAtDrink: 120, paidAtDrink: 95 },
+    { id: 'd3', bottleId: 'hermitage', cellarId: 'main', name: 'Hermitage La Chapelle', producer: 'Paul Jaboulet Aîné', vintage: 2010, region: 'Northern Rhône', area: 'Rhône', colour: 'red', format: 'standard', drinkFrom: 2020, drinkTo: 2040, date: '2026-02-14', occasion: 'dinner', companions: 'Just us', rating: 5, note: 'Decanted two hours. Bacon fat and violets, stunning with the lamb.', buyAgain: false, valueAtDrink: 520, paidAtDrink: 320 },
+    { id: 'd4', bottleId: 'brunello', cellarId: 'main', name: 'Brunello di Montalcino', producer: 'Biondi-Santi', vintage: 2016, region: 'Tuscany', area: 'Tuscany', colour: 'red', format: 'standard', drinkFrom: 2026, drinkTo: 2046, date: '2025-12-31', occasion: 'celebration', companions: 'The whole table', rating: 5, note: 'New Year. Opened a touch early but glorious. Sour cherry and leather.', buyAgain: true, valueAtDrink: 95, paidAtDrink: 70 },
+    { id: 'd5', bottleId: 'puligny', cellarId: 'main', name: 'Puligny-Montrachet 1er Cru', producer: 'Domaine Leflaive', vintage: 2011, region: 'Burgundy', area: 'Burgundy', colour: 'white', format: 'standard', drinkFrom: 2015, drinkTo: 2021, date: '2025-11-09', occasion: 'dinner', companions: 'Marcus', rating: 3, note: 'Held it a year too long. Still lovely but past its very best. Lesson learned.', buyAgain: false, valueAtDrink: 210, paidAtDrink: 140 },
+    { id: 'd6', bottleId: 'chablis', cellarId: 'main', name: 'Chablis Grand Cru Les Clos', producer: 'Domaine Raveneau', vintage: 2018, region: 'Burgundy', area: 'Burgundy', colour: 'white', format: 'standard', drinkFrom: 2024, drinkTo: 2038, date: '2025-09-22', occasion: 'restaurant', companions: 'Client dinner', rating: 4, note: 'At Le Bernardin. Oyster-shell and tension. Worth every euro.', buyAgain: true, valueAtDrink: 85, paidAtDrink: 60 },
+    { id: 'd7', bottleId: 'coterotie', cellarId: 'rack', name: 'Côte-Rôtie Brune et Blonde', producer: 'E. Guigal', vintage: 2018, region: 'Northern Rhône', area: 'Rhône', colour: 'red', format: 'standard', drinkFrom: 2025, drinkTo: 2035, date: '2025-06-03', occasion: 'everyday', companions: '', rating: 4, note: 'Just coming together. Smoked meat and blackberry.', buyAgain: false, valueAtDrink: 98, paidAtDrink: 72 },
   ]
 }
 
@@ -90,9 +90,36 @@ export function seedSnapshots(): Snapshot[] {
   return out
 }
 
-export function seedPortfolioNote(): { text: string; asOf: string } {
+export function seedPortfolioNote(): { text: string; asOf: string; value?: number; drinks?: number } {
   return {
     text: 'The cellar sits comfortably ahead of cost, led by Bordeaux and a firm 2015 Margaux. Champagne provides ballast; Piedmont is the quiet compounder. Nothing looks stretched, and nothing needs selling.',
     asOf: todayISO(),
+    value: Math.round(seedBottles().reduce((a, b) => a + bottleValue(b), 0)),
+    drinks: seedDrinks().length,
   }
+}
+
+/** Sample per-bottle price history: monthly points over ~10 months easing to
+ * each bottle's present value. Deterministic, powers time-ranged Top Movers. */
+export function seedBottlePrices(): BottlePrice[] {
+  const today = new Date(`${todayISO()}T00:00:00Z`)
+  const out: BottlePrice[] = []
+  seedBottles().forEach((b, bi) => {
+    const points = 10
+    // A per-bottle drift: some climb, some drift sideways, one softens.
+    const drift = [0.14, 0.08, 0.22, 0.05, -0.06, 0.1, 0.18, 0.03, 0.07, 0.12, 0.02, 0.09, 0.16, 0.04, 0.06][bi % 15]
+    for (let i = 0; i < points; i++) {
+      const d = new Date(today)
+      d.setUTCDate(d.getUTCDate() - (points - 1 - i) * 30)
+      const f = i / (points - 1)
+      const factor = 1 / (1 + drift) + (1 - 1 / (1 + drift)) * f
+      const wobble = 1 + 0.008 * Math.sin((bi + 1) * f * Math.PI * 2.7)
+      out.push({
+        bottleId: b.id,
+        day: d.toISOString().slice(0, 10),
+        unit: Math.round(b.unit * (i === points - 1 ? 1 : factor * wobble)),
+      })
+    }
+  })
+  return out
 }

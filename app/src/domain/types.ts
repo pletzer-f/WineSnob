@@ -98,6 +98,10 @@ export interface Drink {
   rating: number
   note: string
   buyAgain: boolean
+  /** Market value per bottle at the moment it was drunk (realized value). */
+  valueAtDrink?: number
+  /** Cost per bottle at the moment it was drunk, when known. */
+  paidAtDrink?: number
 }
 
 export interface Wish {
