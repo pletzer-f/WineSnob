@@ -2,11 +2,9 @@ import { Avatar, Button, SectionHeader, SettingsRow, Switch, Select } from 'wine
 import { useStore } from '@/store/store'
 import type { Currency, PriceCadence, ViewMode } from '@/domain/types'
 
-const CURRENCY_OPTIONS = [
-  { label: 'Euro (€)', value: 'EUR' },
-  { label: 'US Dollar ($)', value: 'USD' },
-  { label: 'British Pound (£)', value: 'GBP' },
-]
+// Euro only for now: values do not convert between currencies yet, so the
+// selector is locked until live FX rates are wired in.
+const CURRENCY_OPTIONS = [{ label: 'Euro (€)', value: 'EUR' }]
 const CADENCE_OPTIONS = [
   { label: 'Weekly', value: 'weekly' },
   { label: 'Monthly', value: 'monthly' },
@@ -75,7 +73,7 @@ export function Settings() {
 
       {/* cellar */}
       <Group title="Cellar">
-        <SettingsRow label="Currency" description="Used for all valuations" control={<div style={{ minWidth: 150 }}><Select options={CURRENCY_OPTIONS} value={S.currency} onChange={(e) => s.setCurrency(e.target.value as Currency)} /></div>} />
+        <SettingsRow label="Currency" description="Euro only for now; more currencies arrive with live exchange rates" control={<div style={{ minWidth: 150 }}><Select options={CURRENCY_OPTIONS} value="EUR" disabled onChange={(e) => s.setCurrency(e.target.value as Currency)} /></div>} />
         <SettingsRow label="Default view" description="How the cellar opens" control={<div style={{ minWidth: 150 }}><Select options={VIEW_OPTIONS} value={S.defaultView} onChange={(e) => s.setDefaultView(e.target.value as ViewMode)} /></div>} />
       </Group>
 

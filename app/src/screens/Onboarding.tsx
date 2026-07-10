@@ -4,11 +4,8 @@ import { useStore } from '@/store/store'
 import { hasSupabase, supabase } from '@/lib/supabase'
 import type { Currency } from '@/domain/types'
 
-const CURRENCY_OPTIONS = [
-  { label: 'Euro (€)', value: 'EUR' },
-  { label: 'US Dollar ($)', value: 'USD' },
-  { label: 'British Pound (£)', value: 'GBP' },
-]
+// Euro only until live FX rates are wired in (values do not convert yet).
+const CURRENCY_OPTIONS = [{ label: 'Euro (€)', value: 'EUR' }]
 const COLOUR_CHIPS = [
   { key: 'red', label: 'Red' },
   { key: 'white', label: 'White' },
@@ -227,7 +224,7 @@ function SteppedFlow() {
             <p style={stepSub}>How should we address you, and in what currency?</p>
           </div>
           <TextField label="Your name" placeholder="e.g. Alex Rivera" value={s.obAccount.name} onChange={(e) => s.setObAccount({ name: e.target.value })} />
-          <Select label="Currency" options={CURRENCY_OPTIONS} value={s.obAccount.currency} onChange={(e) => s.setObAccount({ currency: e.target.value as Currency })} hint="Used for every valuation" />
+          <Select label="Currency" options={CURRENCY_OPTIONS} value="EUR" disabled onChange={(e) => s.setObAccount({ currency: e.target.value as Currency })} hint="Euro for now; more currencies follow with live rates" />
           <div>
             <div style={miniLabel}>Show your cellar by</div>
             <SegmentedControl

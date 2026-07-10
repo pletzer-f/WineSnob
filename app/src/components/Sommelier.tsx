@@ -290,12 +290,24 @@ function PickCard({ p }: { p: SomPick }) {
   )
 }
 
+/** The sommelier himself: swept hair, bow tie, jacket, bottle in service. */
 function GlassGlyph() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M8 2h8c0 5-1 8.4-4 9.4-3-1-4-4.4-4-9.4z" />
-      <path d="M12 11.5V20" />
-      <path d="M8.5 21h7" />
+    <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {/* hair sweep */}
+      <path d="M6.9 6.4c0-2.7 1.8-4.3 4-4.3 1.7 0 2.7.7 3.2 1.9.9.1 1.7.8 1.7 1.9v.9" />
+      {/* face */}
+      <path d="M6.9 6.4v1.3a3.9 3.9 0 0 0 7.8 0V6.2" />
+      {/* bow tie */}
+      <path d="M8.5 13.4l2.3 1.1 2.3-1.1v2.7l-2.3-1.1-2.3 1.1z" />
+      {/* jacket */}
+      <path d="M3.9 21v-2c0-1.9 1.2-3.3 3.1-4l1.5-.6" />
+      <path d="M13.1 14.4l1.4.6c.7.3 1.3.7 1.7 1.2" />
+      {/* buttons */}
+      <path d="M10.8 17.6h.01M10.8 19.8h.01" />
+      {/* bottle at his side */}
+      <path d="M18 8.7h1.8" />
+      <path d="M18.1 8.7v1.9c0 1-1.1 1.4-1.1 2.9v6.6a.9.9 0 0 0 .9.9h1.8a.9.9 0 0 0 .9-.9v-6.6c0-1.5-1.1-1.9-1.1-2.9V8.7" />
     </svg>
   )
 }

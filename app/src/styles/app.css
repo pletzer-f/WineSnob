@@ -577,9 +577,9 @@ body {
   right: max(18px, env(safe-area-inset-right));
   bottom: calc(100px + env(safe-area-inset-bottom, 0px));
   z-index: 45;
-  width: 54px;
-  height: 54px;
-  border-radius: 999px;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
   border: none;
   background: var(--ws-bordeaux);
   color: var(--ws-cream);
