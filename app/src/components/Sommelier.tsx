@@ -290,24 +290,42 @@ function PickCard({ p }: { p: SomPick }) {
   )
 }
 
-/** The sommelier himself: swept hair, bow tie, jacket, bottle in service. */
+/** The sommelier, traced from the owner's reference icon: swept hair with
+ * its curl, bow tie, buttoned coat, the bottle with its label, and the glass. */
 function GlassGlyph() {
   return (
-    <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {/* hair sweep */}
-      <path d="M6.9 6.4c0-2.7 1.8-4.3 4-4.3 1.7 0 2.7.7 3.2 1.9.9.1 1.7.8 1.7 1.9v.9" />
+    <svg width="30" height="30" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {/* hair: crown sweep ending in the fringe notch on the right */}
+      <path d="M10.6 13.4v-3.2c0-4.8 3.8-7.6 8.4-7.6 3.1 0 5.6 1.1 6.9 3.3 2 .2 3.5 1.8 3.5 4v3.5h-2.6" />
+      {/* the curl at the crown */}
+      <path d="M25.9 5.9c1.3-.5 2.6-.2 3.3.7" />
       {/* face */}
-      <path d="M6.9 6.4v1.3a3.9 3.9 0 0 0 7.8 0V6.2" />
-      {/* bow tie */}
-      <path d="M8.5 13.4l2.3 1.1 2.3-1.1v2.7l-2.3-1.1-2.3 1.1z" />
-      {/* jacket */}
-      <path d="M3.9 21v-2c0-1.9 1.2-3.3 3.1-4l1.5-.6" />
-      <path d="M13.1 14.4l1.4.6c.7.3 1.3.7 1.7 1.2" />
-      {/* buttons */}
-      <path d="M10.8 17.6h.01M10.8 19.8h.01" />
-      {/* bottle at his side */}
-      <path d="M18 8.7h1.8" />
-      <path d="M18.1 8.7v1.9c0 1-1.1 1.4-1.1 2.9v6.6a.9.9 0 0 0 .9.9h1.8a.9.9 0 0 0 .9-.9v-6.6c0-1.5-1.1-1.9-1.1-2.9V8.7" />
+      <path d="M10.6 13.4c0 5.8 3.3 9.7 8.4 9.7s8.4-3.9 8.4-9.7" />
+      {/* bow tie: two wings and the knot */}
+      <path d="M17.6 26.6l-3.4-1.6a1 1 0 0 0-1.4.9v4.5a1 1 0 0 0 1.4.9l3.4-1.6z" />
+      <path d="M20.4 26.6l3.4-1.6a1 1 0 0 1 1.4.9v4.5a1 1 0 0 1-1.4.9l-3.4-1.6z" />
+      <rect x="17.6" y="25.5" width="2.8" height="5.2" rx="1.2" />
+      {/* coat: left edge, rounded bottom corner, hem running to the bottle */}
+      <path d="M13.9 27.6c-4.7 1.7-7.6 5.1-7.6 10.3v5.1a2.5 2.5 0 0 0 2.5 2.5h22.4" />
+      <path d="M24.1 27.6c2.7 1 4.7 2.6 5.9 4.8" />
+      {/* arm seam */}
+      <path d="M13 45.5V33.6" />
+      {/* placket and its three toggle bars */}
+      <path d="M19 32.6v2M19 37.2v1.6M19 41.6v1.6" />
+      <rect x="16.3" y="34.4" width="5.4" height="2.2" rx="1.1" />
+      <rect x="16.3" y="38.8" width="5.4" height="2.2" rx="1.1" />
+      <rect x="16.3" y="43.2" width="5.4" height="2.2" rx="1.1" />
+      {/* bottle: cap, neck, shoulders, body, base */}
+      <rect x="33.6" y="21.8" width="4" height="2.8" rx="1" />
+      <path d="M34.3 24.6v3.6c0 2.1-2.8 2.4-2.8 5.4v9.2a2.6 2.6 0 0 0 2.6 2.6h3a2.6 2.6 0 0 0 2.6-2.6v-9.2c0-3-2.8-3.3-2.8-5.4v-3.6" />
+      {/* the label */}
+      <rect x="31.5" y="35.2" width="4.6" height="4.6" rx="1.1" />
+      {/* glass: bowl with its fill line, stem, foot */}
+      <path d="M40.9 30.6h6.8" />
+      <path d="M40.9 30.6c0 3.6 1 6.3 3.4 7.1 2.4-.8 3.4-3.5 3.4-7.1" />
+      <path d="M41.3 34.2h6" />
+      <path d="M44.3 37.9v5.4" />
+      <path d="M41.6 45.4c.7-.6 1.6-.9 2.7-.9s2 .3 2.7.9" />
     </svg>
   )
 }
