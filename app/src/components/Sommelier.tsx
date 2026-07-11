@@ -292,9 +292,9 @@ function PickCard({ p }: { p: SomPick }) {
 
 /** The sommelier, traced from the owner's reference icon: swept hair with
  * its curl, bow tie, buttoned coat, the bottle with its label, and the glass. */
-function GlassGlyph() {
+export function GlassGlyph({ size = 30 }: { size?: number }) {
   return (
-    <svg width="30" height="30" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {/* hair: crown sweep ending in the fringe notch on the right */}
       <path d="M10.6 13.4v-3.2c0-4.8 3.8-7.6 8.4-7.6 3.1 0 5.6 1.1 6.9 3.3 2 .2 3.5 1.8 3.5 4v3.5h-2.6" />
       {/* the curl at the crown */}

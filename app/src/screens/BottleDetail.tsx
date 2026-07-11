@@ -5,6 +5,7 @@ import { scopedBottles } from '@/store/selectors'
 import { isInlinePhoto } from '@/data/labels'
 import { getWineryProfile, type Winery } from '@/data/wineries'
 import { RegionArt } from '@/components/RegionArt'
+import { GlassGlyph } from '@/components/Sommelier'
 import { bottleValue, formatWindow, unitValueNow } from '@/domain/valuation'
 import { fmtDef, fmtLitres } from '@/domain/formats'
 import { siblingsOf, drinkVerdict } from '@/domain/wine'
@@ -244,6 +245,22 @@ export function BottleDetailScreen() {
         </div>
       )}
 
+      {/* ask the sommelier: the one clear entry, in his own dress */}
+      <button
+        className="ws-lift"
+        onClick={() => s.openSommelier(`Tell me about my ${selected.name} ${selected.vintage}: how is it drinking now, and when should I open it?`)}
+        style={{ display: 'flex', alignItems: 'center', gap: 'var(--ws-space-4)', width: '100%', boxSizing: 'border-box', textAlign: 'left', padding: 'var(--ws-space-4) var(--ws-space-5)', background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-lg)', boxShadow: 'var(--ws-shadow-sm)', cursor: 'pointer', font: 'inherit' }}
+      >
+        <span style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 12, background: 'var(--ws-bordeaux)', color: 'var(--ws-cream)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+          <GlassGlyph size={26} />
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontFamily: 'var(--ws-font-display)', fontSize: 16.5, color: 'var(--ws-ink)' }}>Ask the sommelier</span>
+          <span style={{ display: 'block', fontSize: 12.5, color: 'var(--ws-muted)', marginTop: 2 }}>How this bottle is drinking now, and when to open it</span>
+        </span>
+        <span style={{ flexShrink: 0, fontSize: 17, color: 'var(--ws-muted)' }}>→</span>
+      </button>
+
       {/* drinking history */}
       {history.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-3)', padding: 'var(--ws-space-5)', background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-lg)', boxShadow: 'var(--ws-shadow-sm)' }}>
@@ -265,24 +282,9 @@ export function BottleDetailScreen() {
         </div>
       )}
 
-      {/* buy again toggle */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--ws-space-4)', flexWrap: 'wrap' }}>
-        <button onClick={() => s.toggleBuyAgain(selected.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 13.5, color: 'var(--ws-bordeaux)', padding: '4px 0' }}>
-          {selected.buyAgain ? '✓ On your Buy again list. Tap to remove.' : '+ Add to Buy again'}
-        </button>
-        <span style={{ color: 'var(--ws-border-strong)' }}>·</span>
-        <button className="ws-linkish" onClick={() => s.go('wishlist')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 13.5, padding: '4px 0' }}>
-          View Buy again list <span style={{ fontSize: 15 }}>→</span>
-        </button>
-      </div>
-
-      {/* ask the sommelier about this bottle */}
-      <button
-        className="ws-linkish ws-linkish--accent"
-        onClick={() => s.openSommelier(`Tell me about my ${selected.name} ${selected.vintage}: how is it drinking now, and when should I open it?`)}
-        style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 13.5, padding: '4px 0' }}
-      >
-        Ask the sommelier about this bottle <span style={{ fontSize: 15 }}>→</span>
+      {/* buy again: one quiet line */}
+      <button onClick={() => s.toggleBuyAgain(selected.id)} style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 7, background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 13.5, color: 'var(--ws-bordeaux)', padding: '2px 0' }}>
+        {selected.buyAgain ? '✓ On your Buy again list' : '+ Add to Buy again'}
       </button>
 
       {/* same wine, other formats */}
