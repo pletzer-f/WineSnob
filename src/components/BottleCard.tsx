@@ -16,6 +16,8 @@ export interface BottleCardProps {
   status?: 'ready' | 'cellaring' | 'past'
   /** Estimated value, preformatted (e.g. "€420"). */
   value?: string
+  /** Label photograph URL; renders a small portrait beside the name. */
+  photo?: string
   className?: string
 }
 
@@ -41,6 +43,7 @@ export function BottleCard({
   quantity,
   status = 'cellaring',
   value,
+  photo,
   className,
 }: BottleCardProps) {
   const s = STATUS[status]
@@ -52,7 +55,8 @@ export function BottleCard({
       <span className="ws-bottle__spine" />
       <div className="ws-bottle__body">
         <div className="ws-bottle__head">
-          <div>
+          {photo && <img className="ws-bottle__photo" src={photo} alt="" loading="lazy" />}
+          <div className="ws-bottle__headmain">
             <p className="ws-bottle__name">{name}</p>
             {producer && <p className="ws-bottle__producer">{producer}</p>}
           </div>

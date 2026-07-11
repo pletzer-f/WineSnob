@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore, type Screen } from '@/store/store'
 import { bootstrapSession } from '@/data/session'
+import { signLabelUrls, isInlinePhoto } from '@/data/labels'
 import { hasSupabase } from '@/lib/supabase'
 import { isStandalone } from '@/lib/pwa'
 import { Landing } from '@/screens/Landing'
@@ -81,6 +82,24 @@ export function App() {
       setShowLanding(!onboarded && !userId && !isStandalone())
     }
   }, [ready, onboarded, userId, showLanding])
+
+  // Label photographs live behind signed URLs; mint them for any stored
+  // photo that does not have a display URL yet (initial load, new uploads
+  // land their own URLs directly).
+  const photoKey = useStore((s) =>
+    s.bottles
+      .filter((b) => b.photo && !isInlinePhoto(b.photo))
+      .map((b) => b.photo)
+      .sort()
+      .join('|'),
+  )
+  useEffect(() => {
+    if (!ready || !userId || !hasSupabase || !photoKey) return
+    const st = useStore.getState()
+    const missing = [...new Set(photoKey.split('|'))].filter((p) => p && !st.labelUrls[p])
+    if (!missing.length) return
+    void signLabelUrls(missing).then((map) => useStore.getState().mergeLabelUrls(map))
+  }, [ready, userId, photoKey])
 
   if (!ready || showLanding === null) return null
 

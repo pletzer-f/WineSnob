@@ -51,6 +51,7 @@ const bottleRow = (userId: string, b: Bottle) => ({
   drink_to: b.drinkTo ?? null, note: b.note, location: b.location ?? null, buy_again: !!b.buyAgain,
   market_unit: b.marketUnit ?? null, market_low: b.marketLow ?? null, market_high: b.marketHigh ?? null,
   market_source: b.marketSource ?? null, market_as_of: b.marketAsOf ?? null, market_read: b.marketRead ?? null,
+  photo: b.photo && !b.photo.startsWith('data:') ? b.photo : null,
 })
 const drinkRow = (userId: string, r: Drink) => ({
   id: r.id, user_id: userId, bottle_id: r.bottleId || null, cellar_id: r.cellarId, name: r.name,
@@ -79,6 +80,7 @@ const bottleFromRow = (r: any): Bottle => ({
   marketLow: r.market_low == null ? undefined : Number(r.market_low),
   marketHigh: r.market_high == null ? undefined : Number(r.market_high),
   marketSource: r.market_source ?? undefined, marketAsOf: r.market_as_of ?? undefined, marketRead: r.market_read ?? undefined,
+  photo: r.photo ?? undefined,
 })
 const drinkFromRow = (r: any): Drink => ({
   id: r.id, bottleId: r.bottle_id || '', cellarId: r.cellar_id, name: r.name, producer: r.producer,

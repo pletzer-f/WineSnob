@@ -290,6 +290,19 @@
   align-items: flex-start;
   gap: var(--ws-space-4);
 }
+.ws-bottle__headmain {
+  flex: 1;
+  min-width: 0;
+}
+.ws-bottle__photo {
+  width: 46px;
+  height: 62px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 0.5px solid var(--ws-border);
+  background: var(--ws-alabaster);
+  flex: none;
+}
 .ws-bottle__name {
   font-family: var(--ws-font-display);
   font-weight: 500;
@@ -349,6 +362,21 @@
   width: 100%;
   text-align: left;
   background: transparent;
+}
+.ws-row__photo {
+  width: 34px;
+  height: 46px;
+  border-radius: 7px;
+  object-fit: cover;
+  border: 0.5px solid var(--ws-border);
+  background: var(--ws-alabaster);
+  flex: none;
+}
+.ws-row__photo--empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ws-border-strong);
 }
 .ws-row__vintage {
   font-family: var(--ws-font-display);

@@ -76,6 +76,9 @@ export interface Bottle {
   marketAsOf?: string
   /** One-line AI market read (trading strength, hold/drink/sell). */
   marketRead?: string
+  /** Label photograph: a storage path in the `labels` bucket, or an inline
+   * data URL in demo mode. */
+  photo?: string
 }
 
 export interface Drink {

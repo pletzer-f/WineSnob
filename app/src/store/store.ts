@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { askSommelier, valueCellar, type SomPick } from '@/data/ai'
+import { demoPhotoDataUrl, uploadLabelPhoto, type LabelUrls } from '@/data/labels'
 import { hasSupabase } from '@/lib/supabase'
 import { bottleValue, unitValueNow } from '@/domain/valuation'
 import { allocation, costBasis, movers, totalReturn, type BottlePrice, type Snapshot } from '@/domain/portfolio'
@@ -185,6 +186,9 @@ export interface StoreState {
   settings: Settings
   account: Account
 
+  // label photographs: signed display URLs keyed by storage path (not persisted)
+  labelUrls: Record<string, LabelUrls>
+
   // dashboards
   statKeys: string[]
   logStatKeys: string[]
@@ -353,7 +357,10 @@ export interface StoreActions {
   goImport: () => void
   backToCapture: () => void
   startProcessing: () => void
-  ingestReads: (reads: RawRead[], intervalMs?: number) => void
+  ingestReads: (reads: RawRead[], intervalMs?: number, files?: File[]) => void
+  setBottlePhoto: (bottleId: string, photo: string, urls?: LabelUrls) => void
+  mergeLabelUrls: (map: Record<string, LabelUrls>) => void
+  attachPhotoToBottle: (bottleId: string, file: File) => Promise<void>
   onImportFiles: () => void
   updateCaptured: (i: number, patch: Partial<CapturedRead>) => void
   setCapturedQty: (i: number, v: number) => void
@@ -533,6 +540,11 @@ export function setRemoteSync(fn: ((userId: string, data: PersistData) => void) 
 let persistTimer: ReturnType<typeof setTimeout> | null = null
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 
+// Files from the capture tray, aligned with `captured` indexes so each scan's
+// photograph can be attached to the bottle it becomes. Files are not
+// serializable, so they live outside the store state.
+let pendingLabelFiles: (File | undefined)[] = []
+
 const initialState: StoreState = {
   userId: null,
   ready: false,
@@ -553,6 +565,7 @@ const initialState: StoreState = {
   bottles: [],
   drinks: [],
   wishlist: [],
+  labelUrls: {},
   customCollections: [],
   settings: { ...DEFAULT_SETTINGS },
   account: { ...DEFAULT_ACCOUNT },
@@ -1031,10 +1044,16 @@ export const useStore = create<Store>((set, get) => {
     // ---- add flow ----
     setMode: (mode) => set({ addMode: mode }),
     goImport: () => set({ addStep: 'import' }),
-    backToCapture: () => set({ addStep: 'capture', processCurrent: 0 }),
+    backToCapture: () => {
+      pendingLabelFiles = []
+      set({ addStep: 'capture', processCurrent: 0 })
+    },
     startProcessing: () => set({ shutterOn: false }),
     setAiError: (msg) => set({ aiError: msg }),
-    ingestReads: (reads, intervalMs = 500) => {
+    ingestReads: (reads, intervalMs = 500, files) => {
+      // Photographs attach only when each photo produced exactly one read
+      // (label mode); a case photo maps to many bottles and is not a label.
+      pendingLabelFiles = files && files.length === reads.length ? files.slice() : []
       const cellar = get().bottles
       set({ addStep: 'processing', processCurrent: 0, captured: [], aiError: null })
       // brief animated progress, then land on the review step
@@ -1073,6 +1092,7 @@ export const useStore = create<Store>((set, get) => {
       }),
     discardCaptured: (i) =>
       set((s) => {
+        pendingLabelFiles.splice(i, 1)
         const captured = s.captured.filter((_, idx) => idx !== i)
         if (captured.length === 0) return { captured, addStep: 'capture', reviewExpanded: {} }
         const ex: Record<number, boolean> = {}
@@ -1084,22 +1104,28 @@ export const useStore = create<Store>((set, get) => {
         return { captured, reviewExpanded: ex }
       }),
     confirmBatch: () => {
+      // Scans whose photograph should be kept: bottle id -> tray file.
+      const photoJobs: { id: string; file: File }[] = []
       set((s) => {
         let bottles = s.bottles.slice()
         let mergedCount = 0
         const added: Bottle[] = []
-        s.captured.forEach((r) => {
+        s.captured.forEach((r, ci) => {
+          const shot = pendingLabelFiles[ci]
           const qty = Math.max(1, r.quantity || 1)
           const unit = r.unit === '' || r.unit == null ? 100 : parseFloat(String(r.unit)) || 100
           if (r.dupId && r.dupMode === 'merge') {
             bottles = bottles.map((b) => (b.id === r.dupId ? { ...b, quantity: b.quantity + qty } : b))
             mergedCount += 1
+            if (shot) photoJobs.push({ id: r.dupId, file: shot })
             return
           }
           const vintage = typeof r.vintage === 'number' ? r.vintage : parseInt(String(r.vintage), 10) || 2020
           const status: DrinkStatus = vintage <= 2018 ? 'ready' : 'cellaring'
+          const newId = uid('bottle')
+          if (shot) photoJobs.push({ id: newId, file: shot })
           added.push({
-            id: uid('bottle'),
+            id: newId,
             cellarId: attachCellarId(),
             name: r.name || 'Unknown wine',
             producer: r.producer || 'Unknown producer',
@@ -1139,7 +1165,36 @@ export const useStore = create<Store>((set, get) => {
       })
       if (toastTimer) clearTimeout(toastTimer)
       toastTimer = setTimeout(() => set({ toast: null }), 2800)
+      pendingLabelFiles = []
       get()._persist()
+      // Photographs upload quietly after the cellar updates; each one lands
+      // on its bottle the moment it is stored.
+      photoJobs.forEach(({ id, file }) => {
+        void get()
+          .attachPhotoToBottle(id, file)
+          .catch(() => get().flash('A label photo could not be saved'))
+      })
+    },
+
+    // ---- label photographs ----
+    setBottlePhoto: (bottleId, photo, urls) => {
+      set((s) => ({
+        bottles: s.bottles.map((b) => (b.id === bottleId ? { ...b, photo } : b)),
+        labelUrls: urls ? { ...s.labelUrls, [photo]: urls } : s.labelUrls,
+      }))
+      get()._persist()
+    },
+    mergeLabelUrls: (map) => {
+      if (Object.keys(map).length) set((s) => ({ labelUrls: { ...s.labelUrls, ...map } }))
+    },
+    attachPhotoToBottle: async (bottleId, file) => {
+      const userId = get().userId
+      if (hasSupabase && userId) {
+        const { path, urls } = await uploadLabelPhoto(userId, bottleId, file)
+        get().setBottlePhoto(bottleId, path, urls)
+      } else {
+        get().setBottlePhoto(bottleId, await demoPhotoDataUrl(file))
+      }
     },
 
     // ---- wishlist ----

@@ -14,6 +14,7 @@ import {
 import { useStore } from '@/store/store'
 import { scopedBottles } from '@/store/selectors'
 import { SMART_COLLECTIONS } from '@/domain/collections'
+import { isInlinePhoto } from '@/data/labels'
 import { bottleValue } from '@/domain/valuation'
 import { fmtDef } from '@/domain/formats'
 import { useMoney } from '@/lib/useMoney'
@@ -114,6 +115,12 @@ export function Cellar() {
     if (sorter) list = list.slice().sort(sorter)
     return list
   }, [cellar, colDef, colourFilters.join(), statusFilters.join(), s.regionFilter, q, s.sortBy])
+
+  // Label photograph thumbnails; rows keep an empty slot when any row in the
+  // list has a photo so the vintage column stays aligned.
+  const photoThumb = (b: Bottle): string | undefined =>
+    b.photo ? (isInlinePhoto(b.photo) ? b.photo : s.labelUrls[b.photo]?.thumb) : undefined
+  const anyPhoto = filtered.some((b) => !!photoThumb(b))
 
   const fBottles = filtered.reduce((a, b) => a + b.quantity, 0)
   const resultLabel = `${filtered.length} ${filtered.length === 1 ? 'wine' : 'wines'} · ${fBottles} ${fBottles === 1 ? 'bottle' : 'bottles'}`
@@ -340,7 +347,7 @@ export function Cellar() {
                             {d.label}
                           </span>
                         )}
-                        <BottleCard name={b.name} producer={b.producer} vintage={b.vintage} region={b.region} quantity={b.quantity} status={b.status} value={money(bottleValue(b))} />
+                        <BottleCard name={b.name} producer={b.producer} vintage={b.vintage} region={b.region} quantity={b.quantity} status={b.status} value={money(bottleValue(b))} photo={photoThumb(b)} />
                       </div>
                     )
                   })}
@@ -349,7 +356,7 @@ export function Cellar() {
                 <div style={{ background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-lg)', padding: '2px 16px', boxShadow: 'var(--ws-shadow-sm)' }}>
                   {g.bottles.map((b) => (
                     <div key={b.id} onClick={() => s.openBottle(b)} style={{ cursor: 'pointer' }}>
-                      <CellarRow name={b.name} producer={b.producer} vintage={b.vintage} region={b.region} quantity={b.quantity} status={b.status} />
+                      <CellarRow name={b.name} producer={b.producer} vintage={b.vintage} region={b.region} quantity={b.quantity} status={b.status} photo={photoThumb(b) ?? (anyPhoto ? null : undefined)} />
                     </div>
                   ))}
                 </div>

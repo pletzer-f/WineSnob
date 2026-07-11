@@ -71,7 +71,9 @@ export function AddBottle() {
     useStore.setState({ addStep: 'processing', processCurrent: 0, captured: [], aiError: null })
     try {
       const reads = await readLabels(files, s.addMode)
-      s.ingestReads(reads, 420)
+      // In label mode each photo becomes one bottle, so the tray shots ride
+      // along and are kept as the bottles' label photographs.
+      s.ingestReads(reads, 420, s.addMode === 'label' ? files : undefined)
     } catch (e) {
       s.setAiError(e instanceof Error ? e.message : 'Could not read that photo.')
       s.flash('Could not read that photo. Try again.')
