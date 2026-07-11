@@ -41,6 +41,11 @@ export function Stats() {
     useStore.getState().ensureDeskNoteFresh()
   }, [])
 
+  // A stale scrub position must never survive a range or view switch.
+  useEffect(() => {
+    setHover(null)
+  }, [range, withEnjoyed])
+
   const today = todayISO()
   const thisYear = parseInt(today.slice(0, 4), 10)
   const bottles = s.bottles
@@ -162,35 +167,24 @@ export function Stats() {
                   : `${up ? '+' : '−'}${money(Math.abs(Math.round(series.delta)))} (${fmtPct(series.deltaPct)}) · ${RANGES.find((r) => r.key === range)?.label}`}
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
-            <div className="ws-folio-ranges">
-              {RANGES.map((r) => (
-                <button key={r.key} className={`ws-folio-range${range === r.key ? ' ws-folio-range--on' : ''}`} onClick={() => setRange(r.key)}>
-                  {r.label}
-                </button>
-              ))}
-            </div>
-            {tr.enjoyedAll > 0 && (
-              <div className="ws-folio-ranges">
-                <button className={`ws-folio-range${!withEnjoyed ? ' ws-folio-range--on' : ''}`} onClick={() => setWithEnjoyed(false)}>
-                  Cellar
-                </button>
-                <button className={`ws-folio-range${withEnjoyed ? ' ws-folio-range--on' : ''}`} onClick={() => setWithEnjoyed(true)}>
-                  With enjoyed
-                </button>
-              </div>
-            )}
+          <div className="ws-folio-ranges">
+            {RANGES.map((r) => (
+              <button key={r.key} className={`ws-folio-range${range === r.key ? ' ws-folio-range--on' : ''}`} onClick={() => setRange(r.key)}>
+                {r.label}
+              </button>
+            ))}
           </div>
         </div>
 
         {chart ? (
           <div
-            style={{ position: 'relative', height: 128, touchAction: 'none', cursor: 'crosshair' }}
+            style={{ position: 'relative', height: 128, touchAction: 'pan-y', cursor: 'crosshair' }}
             onMouseMove={onMove}
             onMouseLeave={() => setHover(null)}
             onTouchStart={onMove}
             onTouchMove={onMove}
             onTouchEnd={() => setHover(null)}
+            onTouchCancel={() => setHover(null)}
           >
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}>
               <polyline points={chart.line} fill="none" stroke={deltaColor} strokeWidth="0.7" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
@@ -217,6 +211,20 @@ export function Stats() {
             <span style={{ fontSize: 13, color: 'var(--ws-muted)', lineHeight: 1.5 }}>
               {empty ? 'Your chart will draw itself once there are bottles to value.' : 'Recording history from today. The chart appears with your next valuations.'}
             </span>
+          </div>
+        )}
+
+        {tr.enjoyedAll > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '0.5px solid var(--ws-border)', paddingTop: 'var(--ws-space-3)' }}>
+            <span style={{ fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ws-muted)' }}>View</span>
+            <div className="ws-folio-ranges">
+              <button className={`ws-folio-range${!withEnjoyed ? ' ws-folio-range--on' : ''}`} onClick={() => setWithEnjoyed(false)}>
+                Cellar
+              </button>
+              <button className={`ws-folio-range${withEnjoyed ? ' ws-folio-range--on' : ''}`} onClick={() => setWithEnjoyed(true)}>
+                With enjoyed
+              </button>
+            </div>
           </div>
         )}
 
