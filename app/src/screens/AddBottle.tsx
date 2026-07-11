@@ -22,49 +22,19 @@ const COLOUR_OPTIONS = [
   { label: 'Fortified', value: 'fortified' },
 ]
 
-interface Shot {
-  id: string
-  file: File
-  url: string
-}
-
-let shotSeq = 0
-
 export function AddBottle() {
   const s = useStore()
   const fileRef = useRef<HTMLInputElement>(null)
   const libraryRef = useRef<HTMLInputElement>(null)
   const importRef = useRef<HTMLInputElement>(null)
 
-  // The photo tray: shots collect instantly (no processing per photo) and are
-  // read together in ONE request, so there is no waiting between pictures.
-  const [shots, setShots] = useState<Shot[]>([])
+  // The photo tray lives in the store: shots collect instantly, are read
+  // together in ONE request, and survive switching tabs mid-entry.
+  const shots = s.shots
   const [batchSize, setBatchSize] = useState(1)
 
-  useEffect(
-    () => () => {
-      shots.forEach((sh) => URL.revokeObjectURL(sh.url))
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  )
-
-  const addShots = (files: File[]) => {
-    if (!files.length) return
-    setShots((prev) => [...prev, ...files.map((file) => ({ id: `shot-${++shotSeq}`, file, url: URL.createObjectURL(file) }))])
-  }
-  const removeShot = (id: string) =>
-    setShots((prev) => {
-      const gone = prev.find((sh) => sh.id === id)
-      if (gone) URL.revokeObjectURL(gone.url)
-      return prev.filter((sh) => sh.id !== id)
-    })
-  const clearShots = () => {
-    setShots((prev) => {
-      prev.forEach((sh) => URL.revokeObjectURL(sh.url))
-      return []
-    })
-  }
+  const addShots = (files: File[]) => s.addShots(files)
+  const removeShot = (id: string) => s.removeShot(id)
 
   const runCapture = async (files: File[]) => {
     setBatchSize(Math.max(1, files.length))
@@ -82,9 +52,8 @@ export function AddBottle() {
   }
 
   const readAll = () => {
-    if (!shots.length) return
-    const files = shots.map((sh) => sh.file)
-    clearShots()
+    const files = s.takeShotFiles()
+    if (!files.length) return
     void runCapture(files)
   }
 
@@ -168,7 +137,7 @@ export function AddBottle() {
                         <span style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ws-muted)' }}>
                           {shots.length} {shots.length === 1 ? 'photo' : 'photos'} ready
                         </span>
-                        <button className="ws-linkish" onClick={clearShots} style={{ background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 12.5, padding: 2 }}>
+                        <button className="ws-linkish" onClick={s.clearShots} style={{ background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 12.5, padding: 2 }}>
                           Clear
                         </button>
                       </div>

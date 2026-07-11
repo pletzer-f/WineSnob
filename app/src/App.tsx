@@ -23,6 +23,18 @@ import { CellarLog } from '@/screens/CellarLog'
 import { Notes } from '@/screens/Notes'
 import { Settings } from '@/screens/Settings'
 
+/** The quiet moment while the session resolves: the wordmark on cream,
+ * never a blank flash. */
+function Splash() {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--ws-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="ws-splash-mark" style={{ fontFamily: 'var(--ws-font-display)', fontWeight: 500, fontSize: 19, letterSpacing: '0.34em', color: 'var(--ws-ink)' }}>
+        WINE&nbsp;SNOB
+      </div>
+    </div>
+  )
+}
+
 function ScreenView({ screen }: { screen: Screen }) {
   switch (screen) {
     case 'detail':
@@ -101,7 +113,7 @@ export function App() {
     void signLabelUrls(missing).then((map) => useStore.getState().mergeLabelUrls(map))
   }, [ready, userId, photoKey])
 
-  if (!ready || showLanding === null) return null
+  if (!ready || showLanding === null) return <Splash />
 
   if (showLanding) {
     return (

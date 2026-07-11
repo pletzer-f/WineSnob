@@ -22,7 +22,7 @@ import type {
   Vintage,
   WineColour,
 } from '@/domain/types'
-import { detectDup, inferCountry } from '@/domain/wine'
+import { detectDup, inferArea, inferCountry } from '@/domain/wine'
 import { uid } from '@/lib/id'
 import { todayISO } from '@/lib/date'
 import {
@@ -188,6 +188,8 @@ export interface StoreState {
 
   // label photographs: signed display URLs keyed by storage path (not persisted)
   labelUrls: Record<string, LabelUrls>
+  // the capture photo tray: ids + preview URLs (Files live in module scope)
+  shots: { id: string; url: string }[]
 
   // dashboards
   statKeys: string[]
@@ -361,6 +363,11 @@ export interface StoreActions {
   setBottlePhoto: (bottleId: string, photo: string, urls?: LabelUrls) => void
   mergeLabelUrls: (map: Record<string, LabelUrls>) => void
   attachPhotoToBottle: (bottleId: string, file: File) => Promise<void>
+  // the capture photo tray (survives leaving the Add tab mid-entry)
+  addShots: (files: File[]) => void
+  removeShot: (id: string) => void
+  clearShots: () => void
+  takeShotFiles: () => File[]
   onImportFiles: () => void
   updateCaptured: (i: number, patch: Partial<CapturedRead>) => void
   setCapturedQty: (i: number, v: number) => void
@@ -545,6 +552,12 @@ let toastTimer: ReturnType<typeof setTimeout> | null = null
 // serializable, so they live outside the store state.
 let pendingLabelFiles: (File | undefined)[] = []
 
+// The capture tray's File handles, keyed by shot id. The tray itself (ids +
+// preview URLs) lives in store state so it survives switching tabs mid-entry;
+// the Files live here in module scope for the same reason.
+const shotFiles = new Map<string, File>()
+let shotSeq = 0
+
 
 const initialState: StoreState = {
   userId: null,
@@ -567,6 +580,7 @@ const initialState: StoreState = {
   drinks: [],
   wishlist: [],
   labelUrls: {},
+  shots: [],
   customCollections: [],
   settings: { ...DEFAULT_SETTINGS },
   account: { ...DEFAULT_ACCOUNT },
@@ -989,7 +1003,7 @@ export const useStore = create<Store>((set, get) => {
       const vintage: Vintage = isNV || !vRaw ? (isNV ? 'NV' : 2020) : parseInt(vRaw, 10)
       const unit = parseInt(String(f.unit).replace(/[^\d]/g, ''), 10) || 0
       const paid = String(f.paid).trim() === '' ? undefined : parseInt(String(f.paid).replace(/[^\d]/g, ''), 10) || 0
-      const area = f.region ? f.region.split(',').pop()!.trim() : '-'
+      const area = f.region ? inferArea(f.region) : '-'
       const score = f.rating ? f.rating * 20 - (f.rating === 5 ? 2 : 0) : 0
 
       set((s) => {
@@ -1132,7 +1146,7 @@ export const useStore = create<Store>((set, get) => {
             producer: r.producer || 'Unknown producer',
             vintage,
             region: r.region || '-',
-            area: (r.region || '').split(',').pop()!.trim() || r.region || '-',
+            area: r.region ? inferArea(r.region) : '-',
             country: inferCountry(r.region || ''),
             colour: r.colour || 'red',
             status,
@@ -1196,6 +1210,33 @@ export const useStore = create<Store>((set, get) => {
       } else {
         get().setBottlePhoto(bottleId, await demoPhotoDataUrl(file))
       }
+    },
+
+    // ---- the capture photo tray ----
+    addShots: (files) => {
+      if (!files.length) return
+      const next = files.map((file) => {
+        const id = `shot-${++shotSeq}`
+        shotFiles.set(id, file)
+        return { id, url: URL.createObjectURL(file) }
+      })
+      set((s) => ({ shots: [...s.shots, ...next] }))
+    },
+    removeShot: (id) => {
+      const gone = get().shots.find((sh) => sh.id === id)
+      if (gone) URL.revokeObjectURL(gone.url)
+      shotFiles.delete(id)
+      set((s) => ({ shots: s.shots.filter((sh) => sh.id !== id) }))
+    },
+    clearShots: () => {
+      get().shots.forEach((sh) => URL.revokeObjectURL(sh.url))
+      shotFiles.clear()
+      set({ shots: [] })
+    },
+    takeShotFiles: () => {
+      const files = get().shots.map((sh) => shotFiles.get(sh.id)).filter(Boolean) as File[]
+      get().clearShots()
+      return files
     },
 
     // ---- wishlist ----

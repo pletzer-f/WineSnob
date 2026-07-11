@@ -53,20 +53,56 @@ export function drinkVerdict(rec: {
 
 /** Country from the region text; '' when it cannot be told (never guessed).
  * Country is a derived field (no form edits it), so readers may prefer this
- * over a stored value to self-heal older rows. */
+ * over a stored value to self-heal older rows. France is tested first:
+ * accented words like "Médoc" break \b word boundaries, so generic terms
+ * (DOC, IGT) must never get the chance to misread a French appellation. */
 export function inferCountry(region: string): string {
   const r = region.toLowerCase()
-  if (/italy|toscana|tuscany|piedmont|piemonte|puglia|salento|sicil|veneto|barolo|barbaresco|bolgheri|chianti|montalcino|langhe|\balba\b|abruzzo|campania|friuli|alto adige|trentino|umbria|marche|etna|\bigt\b|\bigp\b|\bdocg?\b/.test(r)) return 'Italy'
-  if (/spain|rioja|ribera|priorat|jerez|rueda|bierzo|penedes/.test(r)) return 'Spain'
-  if (/germany|mosel|rheingau|pfalz|nahe|rheinhessen|baden|franken/.test(r)) return 'Germany'
-  if (/austria|wachau|kamptal|kremstal|burgenland|steiermark/.test(r)) return 'Austria'
-  if (/portugal|douro|d[aã]o|alentejo|vinho verde|madeira/.test(r)) return 'Portugal'
-  if (/california|napa|sonoma|oregon|washington|\busa\b/.test(r)) return 'USA'
-  if (/australia|barossa|margaret river|mclaren|yarra/.test(r)) return 'Australia'
-  if (/new zealand|marlborough|central otago/.test(r)) return 'New Zealand'
-  if (/argentina|mendoza/.test(r)) return 'Argentina'
-  if (/chile|maipo|colchagua/.test(r)) return 'Chile'
-  if (/south africa|stellenbosch|swartland/.test(r)) return 'South Africa'
-  if (/france|bordeaux|burgund|bourgogne|champagne|rh[ôo]ne|loire|alsace|provence|languedoc|beaujolais|jura|savoie|m[ée]doc|margaux|pauillac|est[èe]phe|julien|pessac|graves|pomerol|[ée]milion|sauternes|chablis|sancerre/.test(r)) return 'France'
+  if (/france|bordeaux|burgund|bourgogne|champagne|rh[ôo]ne|loire|alsace|provence|languedoc|beaujolais|jura|savoie|m[ée]doc|margaux|pauillac|est[èe]phe|julien|pessac|graves|pomerol|[ée]milion|sauternes|barsac|chablis|sancerre|vouvray|chinon|condrieu|hermitage|c[ôo]te-r[ôo]tie|ch[âa]teauneuf|gigondas|cornas|corton|montrachet|musigny|chambertin|roman[ée]e/.test(r)) return 'France'
+  if (/italy|italia|toscana|tuscany|piedmont|piemonte|puglia|salento|manduria|sicil|veneto|valpolicella|amarone|conegliano|prosecco|soave|barolo|barbaresco|bolgheri|sassicaia|chianti|montalcino|montepulciano|langhe|\balba\b|abruzzo|campania|friuli|alto adige|s[üu]dtirol|trentino|umbria|marche|etna|primitivo|negroamaro|nebbiolo|sangiovese|brunello|\bigt\b|\bigp\b/.test(r)) return 'Italy'
+  if (/spain|espa[ñn]a|rioja|ribera del|priorat|jerez|rueda|bierzo|pened[èe]s|rias baixas/.test(r)) return 'Spain'
+  if (/austria|[öo]sterreich|wachau|kamptal|kremstal|burgenland|steiermark|gr[üu]ner/.test(r)) return 'Austria'
+  if (/germany|deutschland|mosel|rheingau|pfalz|nahe|rheinhessen|baden|franken|w[üu]rttemberg/.test(r)) return 'Germany'
+  if (/portugal|douro|d[aã]o|alentejo|vinho verde|madeira|bairrada/.test(r)) return 'Portugal'
+  if (/california|napa|sonoma|oregon|willamette|washington|\busa\b|united states/.test(r)) return 'USA'
+  if (/australia|barossa|margaret river|mclaren|yarra|hunter valley|coonawarra/.test(r)) return 'Australia'
+  if (/new zealand|marlborough|central otago|hawke/.test(r)) return 'New Zealand'
+  if (/argentina|mendoza|uco/.test(r)) return 'Argentina'
+  if (/\bchile\b|maipo|colchagua|casablanca valley/.test(r)) return 'Chile'
+  if (/south africa|stellenbosch|swartland|franschhoek/.test(r)) return 'South Africa'
+  if (/switzerland|schweiz|valais|vaud/.test(r)) return 'Switzerland'
   return ''
+}
+
+const COUNTRY_WORDS = /^(france|italy|italia|spain|espa[ñn]a|germany|deutschland|austria|[öo]sterreich|portugal|usa|united states|australia|new zealand|argentina|chile|south africa|switzerland|schweiz)$/i
+
+const COARSE_AREAS: [RegExp, string][] = [
+  [/margaux|pauillac|est[èe]phe|julien|pessac|graves|pomerol|[ée]milion|sauternes|barsac|m[ée]doc|listrac|moulis|fronsac|bordeaux/, 'Bordeaux'],
+  [/chablis|beaune|gevrey|chambolle|vosne|meursault|puligny|chassagne|nuits|pommard|volnay|corton|montrachet|musigny|chambertin|roman[ée]e|bourgogne|burgundy/, 'Burgundy'],
+  [/champagne/, 'Champagne'],
+  [/hermitage|c[ôo]te-r[ôo]tie|ch[âa]teauneuf|condrieu|gigondas|cornas|saint-joseph|vacqueyras|rh[ôo]ne/, 'Rhône'],
+  [/sancerre|vouvray|chinon|pouilly|anjou|saumur|muscadet|loire/, 'Loire'],
+  [/provence/, 'Provence'],
+  [/barolo|barbaresco|langhe|\balba\b|barbera|nebbiolo|roero|piemonte|piedmont/, 'Piedmont'],
+  [/toscana|bolgheri|sassicaia|chianti|montalcino|brunello|maremma|tuscany/, 'Tuscany'],
+  [/valpolicella|amarone|conegliano|prosecco|soave|veneto/, 'Veneto'],
+  [/salento|manduria|primitivo|negroamaro|puglia/, 'Puglia'],
+  [/etna|sicil/, 'Sicily'],
+  [/wachau|kamptal|kremstal/, 'Wachau'],
+  [/mosel/, 'Mosel'],
+  [/rioja/, 'Rioja'],
+  [/napa|sonoma|california/, 'California'],
+  [/douro/, 'Douro'],
+]
+
+/** Coarse region for grouping and filters: "Saint-Estèphe, Bordeaux" and
+ * plain "Saint-Estèphe" both come home to "Bordeaux"; a trailing country
+ * segment ("Champagne, France") never becomes the area. Derived like
+ * country, so readers may self-heal older rows with it. */
+export function inferArea(region: string): string {
+  const r = region.toLowerCase()
+  for (const [re, area] of COARSE_AREAS) if (re.test(r)) return area
+  const parts = region.split(',').map((p) => p.trim()).filter(Boolean)
+  const meaningful = parts.filter((p) => !COUNTRY_WORDS.test(p))
+  return meaningful[meaningful.length - 1] || parts[parts.length - 1] || region.trim() || '-'
 }

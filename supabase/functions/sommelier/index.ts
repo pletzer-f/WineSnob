@@ -131,7 +131,7 @@ Deno.serve(async (req: Request) => {
     // Rebuild the Anthropic message list. User turns may carry one photo;
     // assistant turns replay the exact JSON the model produced last time.
     const messages = turns.slice(-16).map((t: { role: string; text: string; image?: string | null }) => {
-      if (t.role === 'assistant') return { role: 'assistant', content: t.text }
+      if (t.role === 'assistant') return { role: 'assistant', content: t.text || '{"reply":""}' }
       const content: unknown[] = []
       if (t.image) {
         const { media_type, data } = parseDataUrl(t.image)
@@ -141,17 +141,26 @@ Deno.serve(async (req: Request) => {
       return { role: 'user', content }
     })
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-opus-4-8',
-        max_tokens: 2048,
-        system: systemPrompt(context),
-        messages,
-        output_config: { format: { type: 'json_schema', schema: SCHEMA } },
-      }),
-    })
+    // One retry on burst limits: valuations and the sommelier share the API
+    // key, so a desk note fired right after a valuation run can meet a 429.
+    const call = () =>
+      fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-opus-4-8',
+          max_tokens: 2048,
+          system: systemPrompt(context),
+          messages,
+          output_config: { format: { type: 'json_schema', schema: SCHEMA } },
+        }),
+      })
+    let res = await call()
+    if (res.status === 429 || res.status === 503 || res.status === 529) {
+      await res.body?.cancel()
+      await new Promise((r) => setTimeout(r, 2200))
+      res = await call()
+    }
     if (!res.ok) throw new Error(`Anthropic API ${res.status}: ${await res.text()}`)
     const data = await res.json()
     logUsage(req, 'sommelier', data.usage)

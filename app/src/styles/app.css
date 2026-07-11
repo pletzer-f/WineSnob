@@ -1344,3 +1344,14 @@ body {
   text-transform: uppercase;
   color: var(--ws-bordeaux);
 }
+
+/* ---- splash: the wordmark breathing while the session resolves ---- */
+@media (prefers-reduced-motion: no-preference) {
+  .ws-splash-mark {
+    animation: ws-splash-breathe 1.7s ease-in-out infinite alternate;
+  }
+  @keyframes ws-splash-breathe {
+    from { opacity: 0.35; }
+    to { opacity: 0.9; }
+  }
+}
