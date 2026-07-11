@@ -119,7 +119,15 @@ Deno.serve(async (req: Request) => {
         const { media_type, data } = parseDataUrl(img)
         return { type: 'image', source: { type: 'base64', media_type, data } }
       }),
-      { type: 'text', text: mode === 'case' ? 'Read every wine bottle visible on this case end-panel.' : 'Read this wine label.' },
+      {
+        type: 'text',
+        text:
+          mode === 'case'
+            ? 'Read every wine bottle visible on these case end-panels.'
+            : images.length > 1
+              ? `These are ${images.length} separate label photos. Read each one and return one entry per photo, in the same order.`
+              : 'Read this wine label.',
+      },
     ]
     const out = await extractJSON(SYSTEM, content, SCHEMA, 4096, req)
     return json({ reads: out.reads || [] })

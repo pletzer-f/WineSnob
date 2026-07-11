@@ -6,7 +6,9 @@ import type { RawRead } from '@/store/store'
  * fully explorable offline. */
 export async function readLabels(files: File[], mode: 'label' | 'case' | 'voice'): Promise<RawRead[]> {
   if (hasSupabase && files.length) {
-    const images = await Promise.all(files.map(fileToBase64))
+    // Downscale on the device before upload: a 4 MB camera shot becomes a
+    // ~250 KB JPEG, so a whole batch uploads in one quick request.
+    const images = await Promise.all(files.map((f) => downscaleImage(f, 1568).catch(() => fileToBase64(f))))
     const { data, error } = await supabase.functions.invoke('read-label', {
       body: { images, mode },
     })

@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   CaptureBar,
   ProcessingState,
@@ -22,12 +22,52 @@ const COLOUR_OPTIONS = [
   { label: 'Fortified', value: 'fortified' },
 ]
 
+interface Shot {
+  id: string
+  file: File
+  url: string
+}
+
+let shotSeq = 0
+
 export function AddBottle() {
   const s = useStore()
   const fileRef = useRef<HTMLInputElement>(null)
+  const libraryRef = useRef<HTMLInputElement>(null)
   const importRef = useRef<HTMLInputElement>(null)
 
+  // The photo tray: shots collect instantly (no processing per photo) and are
+  // read together in ONE request, so there is no waiting between pictures.
+  const [shots, setShots] = useState<Shot[]>([])
+  const [batchSize, setBatchSize] = useState(1)
+
+  useEffect(
+    () => () => {
+      shots.forEach((sh) => URL.revokeObjectURL(sh.url))
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+
+  const addShots = (files: File[]) => {
+    if (!files.length) return
+    setShots((prev) => [...prev, ...files.map((file) => ({ id: `shot-${++shotSeq}`, file, url: URL.createObjectURL(file) }))])
+  }
+  const removeShot = (id: string) =>
+    setShots((prev) => {
+      const gone = prev.find((sh) => sh.id === id)
+      if (gone) URL.revokeObjectURL(gone.url)
+      return prev.filter((sh) => sh.id !== id)
+    })
+  const clearShots = () => {
+    setShots((prev) => {
+      prev.forEach((sh) => URL.revokeObjectURL(sh.url))
+      return []
+    })
+  }
+
   const runCapture = async (files: File[]) => {
+    setBatchSize(Math.max(1, files.length))
     useStore.setState({ addStep: 'processing', processCurrent: 0, captured: [], aiError: null })
     try {
       const reads = await readLabels(files, s.addMode)
@@ -37,6 +77,13 @@ export function AddBottle() {
       s.flash('Could not read that photo. Try again.')
       s.backToCapture()
     }
+  }
+
+  const readAll = () => {
+    if (!shots.length) return
+    const files = shots.map((sh) => sh.file)
+    clearShots()
+    void runCapture(files)
   }
 
   const onCapture = () => {
@@ -68,11 +115,21 @@ export function AddBottle() {
         type="file"
         accept="image/*"
         capture="environment"
-        multiple={s.addMode === 'case'}
+        multiple
         style={{ display: 'none' }}
         onChange={(e) => {
-          const files = e.target.files ? Array.from(e.target.files) : []
-          if (files.length) runCapture(files)
+          addShots(e.target.files ? Array.from(e.target.files) : [])
+          e.target.value = ''
+        }}
+      />
+      <input
+        ref={libraryRef}
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          addShots(e.target.files ? Array.from(e.target.files) : [])
           e.target.value = ''
         }}
       />
@@ -99,8 +156,58 @@ export function AddBottle() {
           </div>
 
           <div className="ws-add-cols">
-            <div className="ws-cap-cell" style={{ display: 'flex', justifyContent: 'center', alignItems: 'stretch' }}>
+            <div className="ws-cap-cell" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-3)', justifyContent: 'center', alignItems: 'center' }}>
               <CaptureBar mode={s.addMode} onModeChange={(m) => s.setMode(m as CaptureMode)} onCapture={onCapture} />
+              {(
+                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {shots.length > 0 && (
+                    <div style={{ background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-lg)', boxShadow: 'var(--ws-shadow-sm)', padding: 'var(--ws-space-4)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+                        <span style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ws-muted)' }}>
+                          {shots.length} {shots.length === 1 ? 'photo' : 'photos'} ready
+                        </span>
+                        <button className="ws-linkish" onClick={clearShots} style={{ background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 12.5, padding: 2 }}>
+                          Clear
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {shots.map((sh) => (
+                          <div key={sh.id} style={{ position: 'relative' }}>
+                            <img src={sh.url} alt="" style={{ width: 58, height: 58, objectFit: 'cover', borderRadius: 'var(--ws-radius-sm)', border: '0.5px solid var(--ws-border)', display: 'block' }} />
+                            <button
+                              aria-label="Remove photo"
+                              onClick={() => removeShot(sh.id)}
+                              style={{ position: 'absolute', top: -6, right: -6, width: 19, height: 19, borderRadius: 999, border: 'none', background: 'var(--ws-ink)', color: 'var(--ws-cream)', fontSize: 12, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          aria-label="Add another photo"
+                          onClick={onCapture}
+                          className="ws-hairline-btn"
+                          style={{ width: 58, height: 58, borderRadius: 'var(--ws-radius-sm)', border: '1px dashed var(--ws-taupe)', background: 'transparent', color: 'var(--ws-muted)', fontSize: 22, cursor: 'pointer' }}
+                        >
+                          +
+                        </button>
+                      </div>
+                      <Button variant="primary" onClick={readAll}>
+                        {s.addMode === 'case'
+                          ? `Read the case (${shots.length} ${shots.length === 1 ? 'photo' : 'photos'})`
+                          : `Read ${shots.length} ${shots.length === 1 ? 'label' : 'labels'}`}
+                      </Button>
+                    </div>
+                  )}
+                  <button
+                    className="ws-linkish"
+                    onClick={() => libraryRef.current?.click()}
+                    style={{ alignSelf: 'center', background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 13.5, padding: 4 }}
+                  >
+                    {shots.length ? 'Add more from your photos' : 'Or choose several from your photos'}
+                  </button>
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 'var(--ws-space-3)' }}>
               <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ws-muted)', marginBottom: 2 }}>Or add another way</div>
@@ -144,7 +251,11 @@ export function AddBottle() {
 
       {s.addStep === 'processing' && (
         <div style={{ marginTop: 'var(--ws-space-6)', background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-lg)', boxShadow: 'var(--ws-shadow-sm)', overflow: 'hidden' }}>
-          <ProcessingState current={s.processCurrent} total={Math.max(1, s.captured.length || s.processCurrent)} message={s.addMode === 'case' ? 'Reading your bottles…' : 'Reading the label…'} />
+          <ProcessingState
+            current={s.processCurrent}
+            total={Math.max(1, s.captured.length || s.processCurrent)}
+            message={s.addMode === 'case' ? 'Reading your bottles…' : batchSize > 1 ? `Reading your ${batchSize} labels…` : 'Reading the label…'}
+          />
         </div>
       )}
 
