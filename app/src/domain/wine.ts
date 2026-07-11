@@ -50,3 +50,23 @@ export function drinkVerdict(rec: {
   if (y > rec.drinkTo) return { label: 'Past its peak', tone: 'accent' }
   return { label: 'In its window', tone: 'ready' }
 }
+
+/** Country from the region text; '' when it cannot be told (never guessed).
+ * Country is a derived field (no form edits it), so readers may prefer this
+ * over a stored value to self-heal older rows. */
+export function inferCountry(region: string): string {
+  const r = region.toLowerCase()
+  if (/italy|toscana|tuscany|piedmont|piemonte|puglia|salento|sicil|veneto|barolo|barbaresco|bolgheri|chianti|montalcino|langhe|\balba\b|abruzzo|campania|friuli|alto adige|trentino|umbria|marche|etna|\bigt\b|\bigp\b|\bdocg?\b/.test(r)) return 'Italy'
+  if (/spain|rioja|ribera|priorat|jerez|rueda|bierzo|penedes/.test(r)) return 'Spain'
+  if (/germany|mosel|rheingau|pfalz|nahe|rheinhessen|baden|franken/.test(r)) return 'Germany'
+  if (/austria|wachau|kamptal|kremstal|burgenland|steiermark/.test(r)) return 'Austria'
+  if (/portugal|douro|d[aã]o|alentejo|vinho verde|madeira/.test(r)) return 'Portugal'
+  if (/california|napa|sonoma|oregon|washington|\busa\b/.test(r)) return 'USA'
+  if (/australia|barossa|margaret river|mclaren|yarra/.test(r)) return 'Australia'
+  if (/new zealand|marlborough|central otago/.test(r)) return 'New Zealand'
+  if (/argentina|mendoza/.test(r)) return 'Argentina'
+  if (/chile|maipo|colchagua/.test(r)) return 'Chile'
+  if (/south africa|stellenbosch|swartland/.test(r)) return 'South Africa'
+  if (/france|bordeaux|burgund|bourgogne|champagne|rh[ôo]ne|loire|alsace|provence|languedoc|beaujolais|jura|savoie|m[ée]doc|margaux|pauillac|est[èe]phe|julien|pessac|graves|pomerol|[ée]milion|sauternes|chablis|sancerre/.test(r)) return 'France'
+  return ''
+}

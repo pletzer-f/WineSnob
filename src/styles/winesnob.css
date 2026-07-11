@@ -1193,6 +1193,40 @@
   max-width: 560px;
   box-shadow: var(--ws-shadow);
 }
+.ws-detail__headmain {
+  flex: 1;
+  min-width: 0;
+}
+.ws-detail__photo {
+  flex: none;
+  width: 62px;
+  height: 84px;
+  border-radius: 10px;
+  padding: 0;
+  border: 0.5px solid var(--ws-border);
+  background: var(--ws-alabaster);
+  overflow: hidden;
+  cursor: pointer;
+}
+.ws-detail__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ws-detail__photo:disabled {
+  cursor: default;
+}
+.ws-detail__photo--add {
+  border: 1px dashed var(--ws-border-strong);
+  background: transparent;
+  color: var(--ws-muted);
+  font-size: 20px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 .ws-detail__head {
   display: flex;
   justify-content: space-between;

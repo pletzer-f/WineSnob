@@ -183,6 +183,16 @@ body {
   flex-wrap: wrap;
 }
 
+/* The two secondary bottle actions share one row. */
+.ws-detail__secondary {
+  display: flex;
+  gap: var(--ws-space-3);
+}
+.ws-detail__secondary > * {
+  flex: 1;
+  white-space: nowrap;
+}
+
 /* Bottle detail: let the BottleDetail card fill the column (DS caps it at 560px). */
 .ws-detail-page .ws-detail {
   max-width: none;

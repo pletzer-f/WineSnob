@@ -79,6 +79,7 @@ export function BottleDetailScreen() {
       })
 
     const fmt = {
+      special: sd.equiv !== 1 || sd.age !== 1,
       label: sd.label,
       litres: fmtLitres(sd.litres),
       equivText: sd.equiv === 1 ? 'the standard 750 ml bottle' : `holds ${sd.equiv} standard bottles' worth`,
@@ -123,6 +124,17 @@ export function BottleDetailScreen() {
         <span style={{ fontSize: 17, lineHeight: 1 }}>←</span> Back to cellar
       </button>
 
+      <input
+        ref={photoRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          void onPickPhoto(e.target.files?.[0])
+          e.target.value = ''
+        }}
+      />
+
       <BottleDetailCard
         name={selected.name}
         producer={selected.producer}
@@ -137,14 +149,18 @@ export function BottleDetailScreen() {
         drinkFrom={dwin.from}
         drinkTo={dwin.to}
         notes={selected.note}
+        photo={photoUrl}
+        onPhotoTap={photoBusy ? undefined : () => photoRef.current?.click()}
         actions={
           <>
-            <Button variant="secondary" onClick={() => s.openAddToColl(selected.id)}>
-              Add to collection
-            </Button>
-            <Button variant="secondary" onClick={() => s.openEdit(selected)}>
-              Edit
-            </Button>
+            <div className="ws-detail__secondary">
+              <Button variant="secondary" onClick={() => s.openAddToColl(selected.id)}>
+                Add to collection
+              </Button>
+              <Button variant="secondary" onClick={() => s.openEdit(selected)}>
+                Edit
+              </Button>
+            </div>
             <Button variant="primary" onClick={() => s.openDrinkLog(selected.id)}>
               Mark a bottle drunk
             </Button>
@@ -152,96 +168,64 @@ export function BottleDetailScreen() {
         }
       />
 
-      {/* label photograph */}
-      <input
-        ref={photoRef}
-        type="file"
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          void onPickPhoto(e.target.files?.[0])
-          e.target.value = ''
-        }}
-      />
-      {photoUrl ? (
-        <div style={{ display: 'flex', alignItems: 'stretch', gap: 'var(--ws-space-5)', padding: 'var(--ws-space-4)', background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-lg)', boxShadow: 'var(--ws-shadow-sm)' }}>
-          <img
-            src={photoUrl}
-            alt={`Label of ${selected.name}`}
-            style={{ width: 118, height: 158, objectFit: 'cover', borderRadius: 10, border: '0.5px solid var(--ws-border)', background: 'var(--ws-alabaster)', flex: 'none' }}
-          />
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }}>
-            <div style={microLabel}>Label photograph</div>
-            <div style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ws-ink)' }}>From your own bottle, kept with the entry.</div>
-            <button className="ws-linkish" onClick={() => photoRef.current?.click()} disabled={photoBusy} style={{ alignSelf: 'flex-start', background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 13, padding: '2px 0', color: 'var(--ws-bordeaux)' }}>
-              {photoBusy ? 'Saving…' : 'Replace photograph'}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button
-          onClick={() => photoRef.current?.click()}
-          disabled={photoBusy}
-          style={{ display: 'flex', alignItems: 'center', gap: 'var(--ws-space-4)', textAlign: 'left', width: '100%', boxSizing: 'border-box', padding: 'var(--ws-space-4) var(--ws-space-5)', background: 'var(--ws-alabaster)', border: '1px dashed var(--ws-border-strong)', borderRadius: 'var(--ws-radius-md)', cursor: 'pointer', font: 'inherit' }}
-        >
-          <span style={{ flexShrink: 0, width: 34, height: 46, borderRadius: 7, border: '1px dashed var(--ws-border-strong)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ws-muted)', fontSize: 18 }}>+</span>
-          <span style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ display: 'block', fontSize: 14, color: 'var(--ws-ink)' }}>{photoBusy ? 'Saving…' : 'Add a label photograph'}</span>
-            <span style={{ display: 'block', fontSize: 12.5, color: 'var(--ws-muted)', marginTop: 2 }}>The real bottle then appears across your cellar.</span>
+      {/* format strip: only when the bottle is not a standard 750 ml */}
+      {fmt.special && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--ws-space-4)', flexWrap: 'wrap', padding: 'var(--ws-space-4) var(--ws-space-5)', background: 'var(--ws-cream)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-md)' }}>
+          <span style={{ flexShrink: 0, color: 'var(--ws-bordeaux)' }}>
+            <svg width="26" height="30" viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round">
+              <path d="M10 2h6v4.5c0 1.2 .4 1.8 1.2 2.8C18.8 11 20 12.6 20 16v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V16c0-3.4 1.2-5 2.8-6.7C9.6 8.3 10 7.7 10 6.5V2z" />
+            </svg>
           </span>
-        </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 17, color: 'var(--ws-ink)', lineHeight: 1.1 }}>{fmt.label}</div>
+            <div style={{ fontSize: 13, color: 'var(--ws-muted)', marginTop: 2 }}>
+              {fmt.litres} · {fmt.equivText}
+            </div>
+          </div>
+          <span style={{ flexShrink: 0, fontSize: 12.5, color: 'var(--ws-muted)' }}>{fmt.held}</span>
+        </div>
       )}
 
-      {/* format strip */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--ws-space-4)', flexWrap: 'wrap', padding: 'var(--ws-space-4) var(--ws-space-5)', background: 'var(--ws-cream)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-md)' }}>
-        <span style={{ flexShrink: 0, color: 'var(--ws-bordeaux)' }}>
-          <svg width="26" height="30" viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round">
-            <path d="M10 2h6v4.5c0 1.2 .4 1.8 1.2 2.8C18.8 11 20 12.6 20 16v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V16c0-3.4 1.2-5 2.8-6.7C9.6 8.3 10 7.7 10 6.5V2z" />
-          </svg>
-        </span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 17, color: 'var(--ws-ink)', lineHeight: 1.1 }}>{fmt.label}</div>
-          <div style={{ fontSize: 13, color: 'var(--ws-muted)', marginTop: 2 }}>
-            {fmt.litres} · {fmt.equivText}
-          </div>
-        </div>
-        <span style={{ flexShrink: 0, fontSize: 12.5, color: 'var(--ws-muted)' }}>{fmt.held}</span>
-      </div>
-
       {/* large-format ageing note */}
-      {fmt.ageNote && (
+      {fmt.special && fmt.ageNote && (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: 'var(--ws-space-4) var(--ws-space-5)', background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderLeft: '2px solid var(--ws-bordeaux)', borderRadius: 'var(--ws-radius-md)' }}>
           <span style={{ flexShrink: 0, color: 'var(--ws-bordeaux)', fontSize: 15, lineHeight: 1.4 }}>◷</span>
           <div style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ws-ink)' }}>{fmt.ageNote}</div>
         </div>
       )}
 
-      {/* cost basis */}
-      {cost && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--ws-space-5)', flexWrap: 'wrap', padding: 'var(--ws-space-5)', background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-lg)', boxShadow: 'var(--ws-shadow-sm)' }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={microLabel}>Price paid</div>
-            <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 22, color: 'var(--ws-ink)' }}>{cost.paid}</div>
-          </div>
-          <span style={{ color: 'var(--ws-border-strong)', fontSize: 18 }}>→</span>
-          <div style={{ minWidth: 0 }}>
-            <div style={microLabel}>Current value</div>
-            <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 22, color: 'var(--ws-ink)' }}>{cost.now}</div>
-          </div>
-          <div style={{ flex: 1, minWidth: 100, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
-            <Tag tone={cost.up ? 'ready' : 'accent'}>{cost.deltaText}</Tag>
-            <span style={{ fontSize: 11, color: 'var(--ws-muted)' }}>{cost.cadence} · per bottle</span>
-          </div>
-        </div>
-      )}
-
-      {/* market read */}
-      {selected.marketRead && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 'var(--ws-space-4) var(--ws-space-5)', background: 'var(--ws-cream)', border: '0.5px solid var(--ws-border)', borderLeft: '2px solid var(--ws-bordeaux)', borderRadius: 'var(--ws-radius-md)' }}>
-          <div style={{ fontSize: 10, letterSpacing: '0.13em', textTransform: 'uppercase', color: 'var(--ws-bordeaux)' }}>
-            Market read{selected.marketSource ? ` · ${selected.marketSource}` : ''}
-          </div>
-          <div style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--ws-ink)' }}>{selected.marketRead}</div>
+      {/* value: what it cost, what it is worth, and the market's word on it */}
+      {(cost || selected.marketRead) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--ws-space-4)', padding: 'var(--ws-space-5)', background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-lg)', boxShadow: 'var(--ws-shadow-sm)' }}>
+          {cost && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--ws-space-5)', flexWrap: 'wrap' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={microLabel}>Price paid</div>
+                <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 22, color: 'var(--ws-ink)' }}>{cost.paid}</div>
+              </div>
+              <span style={{ color: 'var(--ws-border-strong)', fontSize: 18 }}>→</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={microLabel}>Current value</div>
+                <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 22, color: 'var(--ws-ink)' }}>{cost.now}</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 100, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                <Tag tone={cost.up ? 'ready' : 'accent'}>{cost.deltaText}</Tag>
+                <span style={{ fontSize: 11, color: 'var(--ws-muted)' }}>{cost.cadence} · per bottle</span>
+              </div>
+            </div>
+          )}
+          {selected.marketRead && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, ...(cost ? { borderTop: '0.5px solid var(--ws-border)', paddingTop: 'var(--ws-space-4)' } : {}) }}>
+              <span style={{ flexShrink: 0, fontSize: 10, letterSpacing: '0.13em', textTransform: 'uppercase', color: 'var(--ws-bordeaux)', paddingTop: 3 }}>Market read</span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 1.55, color: 'var(--ws-ink)' }}>{selected.marketRead}</span>
+            </div>
+          )}
+          {!cost && selected.marketRead && (
+            <div style={{ fontSize: 11, color: 'var(--ws-muted)' }}>
+              {selected.marketSource || 'AI market search'}
+              {selected.marketAsOf ? ` · ${selected.marketAsOf}` : ''}
+            </div>
+          )}
         </div>
       )}
 

@@ -22,7 +22,7 @@ import type {
   Vintage,
   WineColour,
 } from '@/domain/types'
-import { detectDup } from '@/domain/wine'
+import { detectDup, inferCountry } from '@/domain/wine'
 import { uid } from '@/lib/id'
 import { todayISO } from '@/lib/date'
 import {
@@ -545,6 +545,7 @@ let toastTimer: ReturnType<typeof setTimeout> | null = null
 // serializable, so they live outside the store state.
 let pendingLabelFiles: (File | undefined)[] = []
 
+
 const initialState: StoreState = {
   userId: null,
   ready: false,
@@ -1017,7 +1018,7 @@ export const useStore = create<Store>((set, get) => {
           const nb: Bottle = {
             id: uid('bottle'),
             cellarId: attachCellarId(),
-            country: 'France',
+            country: inferCountry(patch.region || ''),
             grapes: [],
             drinkFrom: typeof vintage === 'number' ? vintage + 2 : 2026,
             drinkTo: typeof vintage === 'number' ? vintage + 12 : 2036,
@@ -1132,7 +1133,7 @@ export const useStore = create<Store>((set, get) => {
             vintage,
             region: r.region || '-',
             area: (r.region || '').split(',').pop()!.trim() || r.region || '-',
-            country: 'France',
+            country: inferCountry(r.region || ''),
             colour: r.colour || 'red',
             status,
             quantity: qty,

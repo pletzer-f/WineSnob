@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { setPriceSink, setRemoteSync, setSnapshotSink } from '@/store/store'
+import { inferCountry } from '@/domain/wine'
 import type { PersistData } from '@/data/sync'
 import type { Bottle, Drink, Vintage, Wish } from '@/domain/types'
 import type { BottlePrice, Snapshot } from '@/domain/portfolio'
@@ -71,7 +72,11 @@ const collRow = (userId: string, c: PersistData['customCollections'][number]) =>
 // ---- row -> domain ----
 const bottleFromRow = (r: any): Bottle => ({
   id: r.id, cellarId: r.cellar_id, name: r.name, producer: r.producer, vintage: parseVintage(r.vintage),
-  region: r.region, area: r.area, country: r.country, colour: r.colour, status: r.status,
+  region: r.region, area: r.area,
+  // Country is derived, never edited: prefer the region's word over older
+  // stored rows (early scans hardcoded France), so wrong values self-heal.
+  country: inferCountry(r.region || '') || r.country,
+  colour: r.colour, status: r.status,
   quantity: r.quantity, unit: Number(r.unit), paid: r.paid == null ? undefined : Number(r.paid),
   format: r.format, grapes: r.grapes || [], score: r.score, rating: r.rating,
   drinkFrom: r.drink_from ?? undefined, drinkTo: r.drink_to ?? undefined, note: r.note || '',

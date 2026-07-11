@@ -21,6 +21,11 @@ export interface BottleDetailProps {
   /** Drink-window end year. */
   drinkTo?: number
   notes?: string
+  /** Label photograph URL; shows as a portrait beside the name. */
+  photo?: string
+  /** Tap handler for the portrait slot: add a photo when empty, replace it
+   * when filled. The empty slot renders as a small dashed chip. */
+  onPhotoTap?: () => void
   /** Footer actions (e.g. Buttons). */
   actions?: React.ReactNode
   className?: string
@@ -53,6 +58,8 @@ export function BottleDetail({
   drinkFrom,
   drinkTo,
   notes,
+  photo,
+  onPhotoTap,
   actions,
   className,
 }: BottleDetailProps) {
@@ -68,7 +75,28 @@ export function BottleDetail({
   return (
     <div className={cls}>
       <div className="ws-detail__head">
-        <div>
+        {photo ? (
+          <button
+            type="button"
+            className="ws-detail__photo"
+            onClick={onPhotoTap}
+            disabled={!onPhotoTap}
+            title={onPhotoTap ? 'Replace the label photograph' : undefined}
+          >
+            <img src={photo} alt={`Label of ${name}`} />
+          </button>
+        ) : onPhotoTap ? (
+          <button
+            type="button"
+            className="ws-detail__photo ws-detail__photo--add"
+            onClick={onPhotoTap}
+            aria-label="Add a label photograph"
+            title="Add a label photograph"
+          >
+            +
+          </button>
+        ) : null}
+        <div className="ws-detail__headmain">
           <h1 className="ws-detail__name">{name}</h1>
           {producer && <p className="ws-detail__producer">{producer}</p>}
         </div>
