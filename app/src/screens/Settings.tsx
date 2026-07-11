@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { Avatar, Button, SectionHeader, SettingsRow, Switch, Select } from 'winesnob-design-system'
 import { useStore } from '@/store/store'
+import { exportCellarCSV, exportWorkbook, type ExportInput } from '@/data/exporter'
 import type { Currency, PriceCadence, ViewMode } from '@/domain/types'
 
 // Euro only for now: values do not convert between currencies yet, so the
@@ -19,6 +21,31 @@ export function Settings() {
   const s = useStore()
   const S = s.settings
   const A = s.account
+  const [exporting, setExporting] = useState(false)
+
+  const exportInput = (): ExportInput => ({
+    cellars: s.cellars,
+    bottles: s.bottles,
+    drinks: s.drinks,
+    wishlist: s.wishlist,
+    accountName: A.name,
+    accountEmail: A.email,
+  })
+  const downloadCSV = () => {
+    exportCellarCSV(exportInput())
+    s.flash('Cellar exported as CSV')
+  }
+  const downloadWorkbook = async () => {
+    setExporting(true)
+    try {
+      await exportWorkbook(exportInput())
+      s.flash('Workbook exported')
+    } catch {
+      s.flash('Export failed, please try again')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const valued = s.bottles.filter((b) => b.marketSource)
   const connected = s.valuationConfigured === true || valued.length > 0
@@ -75,6 +102,24 @@ export function Settings() {
       <Group title="Cellar">
         <SettingsRow label="Currency" description="Euro only for now; more currencies arrive with live exchange rates" control={<div style={{ minWidth: 150 }}><Select options={CURRENCY_OPTIONS} value="EUR" disabled onChange={(e) => s.setCurrency(e.target.value as Currency)} /></div>} />
         <SettingsRow label="Default view" description="How the cellar opens" control={<div style={{ minWidth: 150 }}><Select options={VIEW_OPTIONS} value={S.defaultView} onChange={(e) => s.setDefaultView(e.target.value as ViewMode)} /></div>} />
+      </Group>
+
+      {/* export */}
+      <Group title="Export">
+        <SettingsRow
+          label="Excel workbook"
+          description="Overview, cellar, drinking history and wishlist in one file, ready for Excel or Numbers"
+          control={
+            <Button variant="secondary" onClick={downloadWorkbook} disabled={exporting}>
+              {exporting ? 'Preparing…' : 'Download'}
+            </Button>
+          }
+        />
+        <SettingsRow
+          label="CSV file"
+          description="The cellar as plain comma-separated text, for any tool"
+          control={<Button variant="secondary" onClick={downloadCSV}>Download</Button>}
+        />
       </Group>
 
       {/* sharing */}
