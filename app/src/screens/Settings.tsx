@@ -8,9 +8,9 @@ import type { Currency, PriceCadence, ViewMode } from '@/domain/types'
 // selector is locked until live FX rates are wired in.
 const CURRENCY_OPTIONS = [{ label: 'Euro (€)', value: 'EUR' }]
 const CADENCE_OPTIONS = [
-  { label: 'Weekly', value: 'weekly' },
-  { label: 'Monthly', value: 'monthly' },
-  { label: 'Quarterly', value: 'quarterly' },
+  { label: 'Every month', value: 'monthly' },
+  { label: 'Every 3 months', value: 'quarterly' },
+  { label: 'Every 6 months', value: 'semiannual' },
 ]
 const VIEW_OPTIONS = [
   { label: 'Grid', value: 'grid' },
@@ -52,11 +52,25 @@ export function Settings() {
   const notConnected = s.valuationConfigured === false && valued.length === 0
   const valSource = s.valuationInfo?.source || valued[0]?.marketSource || 'Wine-Searcher'
   const valAsOf = s.valuationInfo?.asOf || valued.map((b) => b.marketAsOf).filter(Boolean).sort().pop()
+
+  // The manual run is capped at once a month, and it costs real money:
+  // an explicit confirmation with an estimate stands before it.
+  const [valConfirm, setValConfirm] = useState(false)
+  const nextManual = s.manualValuedAt ? new Date(new Date(s.manualValuedAt).getTime() + 30 * 86400000) : null
+  const manualLocked = !!nextManual && nextManual.getTime() > Date.now()
+  const nextManualDay = nextManual ? nextManual.toISOString().slice(0, 10) : ''
+  const wineCount = s.bottles.length
+  const estUsd = Math.max(1, Math.round(wineCount * 0.28))
   const valuationDesc = connected
-    ? `Priced by ${valSource}${valAsOf ? `, as of ${valAsOf}` : ''}. Refresh any time.`
+    ? `Priced by ${valSource}${valAsOf ? `, as of ${valAsOf}` : ''}.${manualLocked ? ` Manual pricing again from ${nextManualDay}.` : ' One manual run a month.'}`
     : notConnected
       ? 'Not connected. A price source key is needed to value at live market prices.'
-      : 'AI prices each wine from live merchant and auction listings, with a low to high range.'
+      : `AI prices each wine from live merchant and auction listings.${manualLocked ? ` Available again ${nextManualDay}.` : ' One manual run a month.'}`
+
+  const confirmValuation = () => {
+    setValConfirm(false)
+    void s.refreshValuations(true)
+  }
 
   return (
     <div className="ws-mobile-pad" style={page}>
@@ -89,11 +103,36 @@ export function Settings() {
           label="Market pricing"
           description={valuationDesc}
           control={
-            <Button variant={connected ? 'secondary' : 'primary'} onClick={() => s.refreshValuations(true)} disabled={s.valuationBusy}>
-              {s.valuationBusy ? 'Valuing…' : connected ? 'Refresh now' : 'Value my cellar'}
+            <Button
+              variant={connected ? 'secondary' : 'primary'}
+              onClick={() => setValConfirm(true)}
+              disabled={s.valuationBusy || manualLocked || wineCount === 0}
+            >
+              {s.valuationBusy ? 'Valuing…' : manualLocked ? `From ${nextManualDay}` : connected ? 'Refresh now' : 'Value my cellar'}
             </Button>
           }
         />
+        {valConfirm && !manualLocked && (
+          <div style={{ margin: '10px 0 14px', padding: 'var(--ws-space-4) var(--ws-space-5)', background: 'var(--ws-cream)', border: '0.5px solid var(--ws-border)', borderLeft: '2px solid var(--ws-bordeaux)', borderRadius: 'var(--ws-radius-md)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 16.5, color: 'var(--ws-ink)' }}>
+              Price {wineCount} {wineCount === 1 ? 'wine' : 'wines'} at live market?
+            </div>
+            <div style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--ws-ink)' }}>
+              Claude reads current merchant and auction listings for every wine in your cellar. This run costs roughly{' '}
+              <strong>${estUsd}</strong> in AI usage, and manual pricing is available once a month. Your automatic
+              schedule keeps running either way.
+            </div>
+            <div className="ws-modal-actions">
+              <div className="ws-modal-actions__spacer" />
+              <Button variant="secondary" onClick={() => setValConfirm(false)}>
+                Not now
+              </Button>
+              <Button variant="primary" onClick={confirmValuation}>
+                Price my cellar
+              </Button>
+            </div>
+          </div>
+        )}
         <SettingsRow label="Auto-update valuations" description="Quietly revalue stale bottles when you open the app" control={<Switch checked={S.autoValue} onChange={(c) => s.toggleSetting('autoValue', c)} label="Auto-update valuations" />} />
         <SettingsRow label="Update frequency" description="How often valuations refresh when auto-update is on" control={<div style={{ minWidth: 150 }}><Select options={CADENCE_OPTIONS} value={S.priceCadence} onChange={(e) => s.setCadence(e.target.value as PriceCadence)} /></div>} />
       </Group>

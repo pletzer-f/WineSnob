@@ -32,6 +32,8 @@ export interface PersistData {
   bottlePrices?: BottlePrice[]
   /** AI desk note with its as-of date and the figures it was written against. */
   portfolioNote?: { text: string; asOf: string; value?: number; drinks?: number } | null
+  /** When the manual "price my cellar" run last happened (once a month cap). */
+  manualValuedAt?: string | null
 }
 
 const KEY = 'winesnob:snapshot:v1'

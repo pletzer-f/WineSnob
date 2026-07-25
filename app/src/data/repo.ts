@@ -39,6 +39,7 @@ function profileRow(userId: string, d: PersistData) {
     onboarded: d.onboarded,
     portfolio_note: d.portfolioNote?.text ?? null,
     portfolio_note_at: d.portfolioNote?.asOf ?? null,
+    manual_valued_at: d.manualValuedAt ?? null,
     portfolio_note_value: d.portfolioNote?.value ?? null,
     portfolio_note_drinks: d.portfolioNote?.drinks ?? null,
     updated_at: new Date().toISOString(),
@@ -121,7 +122,9 @@ export async function pullUserData(userId: string): Promise<PersistData | null> 
     account: { name: p.name || 'Your Cellar', email: p.email || '', plan: p.plan || 'Connoisseur' },
     settings: {
       reminders: !!p.reminders, weekly: !!p.weekly, autoValue: !!p.auto_value,
-      priceCadence: p.price_cadence || 'monthly', share: !!p.share, household: !!p.household,
+      // Legacy 'weekly' cadence folds into monthly (the fastest offered now).
+      priceCadence: (p.price_cadence === 'weekly' ? 'monthly' : p.price_cadence) || 'monthly',
+      share: !!p.share, household: !!p.household,
       currency: p.currency || 'EUR', defaultView: p.default_view || 'grid',
     },
     measure: p.measure || 'value',
@@ -150,6 +153,7 @@ export async function pullUserData(userId: string): Promise<PersistData | null> 
           drinks: p.portfolio_note_drinks == null ? undefined : Number(p.portfolio_note_drinks),
         }
       : null,
+    manualValuedAt: p.manual_valued_at || null,
   }
 }
 

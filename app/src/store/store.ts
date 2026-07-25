@@ -16,6 +16,7 @@ import type {
   FormatKey,
   Measure,
   OccasionKey,
+  PriceCadence,
   Priority,
   Settings,
   ViewMode,
@@ -229,6 +230,8 @@ export interface StoreState {
   bottlePrices: BottlePrice[]
   portfolioNote: { text: string; asOf: string; value?: number; drinks?: number } | null
   deskNoteBusy: boolean
+  /** When the manual "price my cellar" button last ran (once a month at most). */
+  manualValuedAt: string | null
 
   // admin console
   adminOpen: boolean
@@ -411,7 +414,7 @@ export interface StoreActions {
   // settings + account
   toggleSetting: (key: keyof Settings, checked: boolean) => void
   setCurrency: (c: Currency) => void
-  setCadence: (c: 'weekly' | 'monthly' | 'quarterly') => void
+  setCadence: (c: PriceCadence) => void
   setDefaultView: (v: ViewMode) => void
   openAccount: () => void
   closeAccount: () => void
@@ -522,6 +525,7 @@ function snapshot(s: StoreState): PersistData {
     snapshots: s.snapshots,
     bottlePrices: s.bottlePrices,
     portfolioNote: s.portfolioNote,
+    manualValuedAt: s.manualValuedAt,
   }
 }
 
@@ -611,6 +615,7 @@ const initialState: StoreState = {
   bottlePrices: [],
   portfolioNote: null,
   deskNoteBusy: false,
+  manualValuedAt: null,
   adminOpen: false,
   pwRecovery: false,
   wishOpen: false,
@@ -677,6 +682,7 @@ export const useStore = create<Store>((set, get) => {
         snapshots: data.snapshots || [],
         bottlePrices: data.bottlePrices || [],
         portfolioNote: data.portfolioNote || null,
+        manualValuedAt: data.manualValuedAt || null,
         ready: true,
       })
     },
@@ -836,7 +842,16 @@ export const useStore = create<Store>((set, get) => {
       if (get().valuationBusy) return
       // Manual refresh revalues everything; the automatic pass only touches
       // bottles that have gone stale against the chosen cadence.
-      const days = { weekly: 7, monthly: 30, quarterly: 90 }[get().settings.priceCadence] ?? 30
+      // The manual button is capped at one full live-pricing run per month.
+      if (force) {
+        const last = get().manualValuedAt
+        if (last && Date.now() - new Date(last).getTime() < 30 * 86400000) {
+          const next = new Date(new Date(last).getTime() + 30 * 86400000).toISOString().slice(0, 10)
+          get().flash(`Live pricing runs once a month. Available again ${next}.`, 4200)
+          return
+        }
+      }
+      const days = { monthly: 30, quarterly: 90, semiannual: 180 }[get().settings.priceCadence] ?? 30
       const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
       const pool = force ? get().bottles : get().bottles.filter((b) => !b.marketAsOf || b.marketAsOf < cutoff)
       const inputs = pool.map((b) => ({
@@ -863,6 +878,8 @@ export const useStore = create<Store>((set, get) => {
         set((state) => ({
           valuationConfigured: true,
           valuationInfo: { asOf: res.asOf, source: res.provider, matched: res.matched, total: res.total },
+          // A successful manual run starts the one-month clock.
+          ...(force ? { manualValuedAt: new Date().toISOString() } : {}),
           bottles: state.bottles.map((b) => {
             const r = map.get(b.id)
             return r ? { ...b, marketUnit: r.unit, marketLow: r.low, marketHigh: r.high, marketSource: r.source, marketAsOf: r.asOf, marketRead: r.read } : b
