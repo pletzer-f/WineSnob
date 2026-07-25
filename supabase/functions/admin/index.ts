@@ -163,8 +163,82 @@ Deno.serve(async (req: Request) => {
         if (!userId) return json({ error: 'User is required.' }, 400)
         if (userId === me.id) return json({ error: 'You cannot delete your own admin account.' }, 400)
         // All data tables cascade from auth.users, so this removes everything.
+        // (Billed ai_usage rows survive with user_id nulled; statements are
+        // immutable and keep the frozen email.)
         await authAdmin(`users/${userId}`, { method: 'DELETE' })
         return json({ ok: true })
+      }
+
+      // ---- billing ----
+
+      case 'usageDetail': {
+        // The outstanding (unbilled) balance with its per-function breakdown,
+        // recent activity, and the last statement for context.
+        const { userId } = body
+        if (!userId) return json({ error: 'User is required.' }, 400)
+        const [unbilled, recent, lastStmt] = await Promise.all([
+          rest(`ai_usage?select=fn,input_tokens,output_tokens,searches,cost_usd,created_at&user_id=eq.${userId}&statement_id=is.null&order=created_at.asc`),
+          rest(`ai_usage?select=fn,cost_usd,searches,created_at,statement_id&user_id=eq.${userId}&order=created_at.desc&limit=14`),
+          rest(`billing_statements?select=id,seq,period_start,period_end,total_usd,created_at&user_id=eq.${userId}&order=created_at.desc&limit=1`),
+        ])
+        const byFn = new Map<string, { fn: string; calls: number; input_tokens: number; output_tokens: number; searches: number; usd: number }>()
+        let total = 0
+        for (const r of (unbilled as any[]) || []) {
+          const l = byFn.get(r.fn) || { fn: r.fn, calls: 0, input_tokens: 0, output_tokens: 0, searches: 0, usd: 0 }
+          l.calls += 1
+          l.input_tokens += r.input_tokens || 0
+          l.output_tokens += r.output_tokens || 0
+          l.searches += r.searches || 0
+          l.usd += Number(r.cost_usd || 0)
+          byFn.set(r.fn, l)
+          total += Number(r.cost_usd || 0)
+        }
+        const lines = [...byFn.values()]
+          .map((l) => ({ ...l, usd: Math.round(l.usd * 10000) / 10000 }))
+          .sort((a, b) => b.usd - a.usd)
+        const rows = (unbilled as any[]) || []
+        return json({
+          outstanding: {
+            totalUsd: Math.round(total * 10000) / 10000,
+            calls: rows.length,
+            since: rows[0]?.created_at || null,
+            until: rows[rows.length - 1]?.created_at || null,
+          },
+          lines,
+          recent: recent || [],
+          lastStatement: (lastStmt as any[])?.[0] || null,
+        })
+      }
+
+      case 'settleUser': {
+        // Atomic in the database: claims every unbilled row, freezes the
+        // totals into an immutable statement, balance restarts at zero.
+        const { userId, note } = body
+        if (!userId) return json({ error: 'User is required.' }, 400)
+        const res = await fetch(`${URL_BASE}/rest/v1/rpc/create_billing_statement`, {
+          method: 'POST',
+          headers: svcHeaders,
+          body: JSON.stringify({
+            p_user: userId,
+            p_until: new Date().toISOString(),
+            p_admin: me.id,
+            p_note: note || null,
+          }),
+        })
+        const text = await res.text()
+        const data = text ? JSON.parse(text) : null
+        if (!res.ok) {
+          const msg = data?.message || 'Could not settle this account.'
+          return json({ error: msg.replace(/^.*Nothing to settle.*$/s, 'Nothing to settle: no unbilled usage.') }, 400)
+        }
+        return json({ statement: data })
+      }
+
+      case 'listStatements': {
+        const { userId } = body
+        const filter = userId ? `&user_id=eq.${userId}` : ''
+        const rows = await rest(`billing_statements?select=*${filter}&order=created_at.desc&limit=200`)
+        return json({ statements: rows || [] })
       }
       default:
         return json({ error: `Unknown action: ${action}` }, 400)

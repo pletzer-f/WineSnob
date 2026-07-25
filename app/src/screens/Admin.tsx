@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button, Logo, Tag, TextField } from 'winesnob-design-system'
 import { useStore } from '@/store/store'
 import { hasSupabase, supabase } from '@/lib/supabase'
-import { adminCall, generatePassword, type AdminOverview, type AdminUser, type WhoAmI } from '@/data/admin'
+import { adminCall, fnLabel, generatePassword, statementNumber, type AdminOverview, type AdminUser, type BillingStatement, type UsageDetail, type WhoAmI } from '@/data/admin'
 
 type Step = 'checking' | 'auth' | 'denied' | 'dash' | 'unavailable'
 
@@ -53,7 +53,10 @@ export function Admin() {
 
   useEffect(() => {
     if (!hasSupabase) {
-      setStep('unavailable')
+      // Offline demo: a mock console with a working billing ledger.
+      setMe({ id: 'demo-owner', email: 'owner@winesnob.app', admin: true })
+      setStep('dash')
+      void load()
       return
     }
     void supabase.auth.getSession().then(({ data }) => {
@@ -86,7 +89,7 @@ export function Admin() {
       <div style={panel}>
         <header style={{ display: 'flex', alignItems: 'center', gap: 'var(--ws-space-4)' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={kicker}>WineSnob administration</div>
+            <div style={kicker}>WineSnob administration{hasSupabase ? '' : ' · demo data'}</div>
             <h1 style={h1}>Admin</h1>
           </div>
           {step === 'dash' && (
@@ -247,6 +250,7 @@ function CreateUser({ onCreated, flash }: { onCreated: () => void; flash: (m: st
 
 function UserRow({ u, self, onChanged, flash }: { u: AdminUser; self: boolean; onChanged: () => void; flash: (m: string, ms?: number) => void }) {
   const [pwOpen, setPwOpen] = useState(false)
+  const [billingOpen, setBillingOpen] = useState(false)
   const [pw, setPw] = useState('')
   const [busy, setBusy] = useState(false)
   const [armed, setArmed] = useState(false)
@@ -337,7 +341,10 @@ function UserRow({ u, self, onChanged, flash }: { u: AdminUser; self: boolean; o
       )}
       {err && <div style={errText}>{err}</div>}
 
-      <div style={{ display: 'flex', gap: 'var(--ws-space-3)', alignItems: 'center', borderTop: '0.5px solid var(--ws-border)', paddingTop: 10 }}>
+      <div style={{ display: 'flex', gap: 'var(--ws-space-3)', alignItems: 'center', borderTop: '0.5px solid var(--ws-border)', paddingTop: 10, flexWrap: 'wrap' }}>
+        <button className="ws-linkish ws-linkish--accent" onClick={() => setBillingOpen((v) => !v)} style={{ ...linkBtn, color: 'var(--ws-bordeaux)' }}>
+          {billingOpen ? 'Close billing' : 'Usage & billing'}
+        </button>
         <button className="ws-linkish" onClick={() => setPwOpen((v) => !v)} style={linkBtn}>
           {pwOpen ? 'Close password' : 'Set password'}
         </button>
@@ -357,6 +364,175 @@ function UserRow({ u, self, onChanged, flash }: { u: AdminUser; self: boolean; o
             {busy ? 'Deleting…' : armed ? 'Tap again to confirm' : 'Delete user'}
           </button>
         )}
+      </div>
+
+      {billingOpen && <BillingPanel userId={u.id} email={u.email} flash={flash} />}
+    </div>
+  )
+}
+
+/** Per-account billing: the outstanding balance with its per-feature
+ * breakdown, the settle action, and the locked statement history. */
+function BillingPanel({ userId, email, flash }: { userId: string; email: string; flash: (m: string, ms?: number) => void }) {
+  const [detail, setDetail] = useState<UsageDetail | null>(null)
+  const [statements, setStatements] = useState<BillingStatement[]>([])
+  const [openStmt, setOpenStmt] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [armed, setArmed] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const load = async () => {
+    setErr(null)
+    try {
+      const [d, s] = await Promise.all([
+        adminCall<UsageDetail>('usageDetail', { userId }),
+        adminCall<{ statements: BillingStatement[] }>('listStatements', { userId }),
+      ])
+      setDetail(d)
+      setStatements(s.statements)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not load billing')
+    }
+  }
+
+  useEffect(() => {
+    void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
+
+  useEffect(() => {
+    if (!armed) return
+    const t = setTimeout(() => setArmed(false), 4000)
+    return () => clearTimeout(t)
+  }, [armed])
+
+  const settle = async () => {
+    if (!armed) {
+      setArmed(true)
+      return
+    }
+    setBusy(true)
+    setErr(null)
+    try {
+      const res = await adminCall<{ statement: BillingStatement }>('settleUser', { userId })
+      flash(`${statementNumber(res.statement.seq)} settled: $${Number(res.statement.total_usd).toFixed(2)}`, 4200)
+      setOpenStmt(res.statement.id)
+      await load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not settle')
+    } finally {
+      setBusy(false)
+      setArmed(false)
+    }
+  }
+
+  const day = (iso?: string | null) => (iso ? String(iso).slice(0, 10) : '')
+  const out = detail?.outstanding
+
+  return (
+    <div style={{ borderTop: '0.5px solid var(--ws-border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {!detail && !err && <div style={{ fontSize: 13, color: 'var(--ws-muted)' }}>Loading usage…</div>}
+      {err && <div style={errText}>{err}</div>}
+
+      {detail && out && (
+        <div style={{ background: 'var(--ws-alabaster)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-md)', padding: 'var(--ws-space-4)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 150 }}>
+              <div style={microLabel}>Outstanding since last statement</div>
+              <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 27, lineHeight: 1, color: 'var(--ws-ink)' }}>${out.totalUsd.toFixed(2)}</div>
+              <div style={{ fontSize: 12, color: 'var(--ws-muted)', marginTop: 4 }}>
+                {out.calls === 0 ? 'No unbilled usage' : `${out.calls} calls · ${day(out.since)} to ${day(out.until)}`}
+                {detail.lastStatement ? ` · previous: ${statementNumber(detail.lastStatement.seq)} on ${day(detail.lastStatement.created_at)}` : ''}
+              </div>
+            </div>
+            <Button variant="primary" size="sm" onClick={() => void settle()} disabled={busy || out.calls === 0}>
+              {busy ? 'Settling…' : armed ? `Confirm: settle $${out.totalUsd.toFixed(2)}` : 'Settle now'}
+            </Button>
+          </div>
+
+          {detail.lines.length > 0 && (
+            <div style={{ borderTop: '0.5px solid var(--ws-border)', paddingTop: 8 }}>
+              {detail.lines.map((l) => (
+                <div key={l.fn} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '5px 0', fontSize: 13.5 }}>
+                  <span style={{ color: 'var(--ws-ink)' }}>{fnLabel(l.fn)}</span>
+                  <span style={{ fontSize: 12, color: 'var(--ws-muted)' }}>
+                    {l.calls} {l.calls === 1 ? 'call' : 'calls'}
+                    {l.searches > 0 ? ` · ${l.searches} searches` : ''}
+                  </span>
+                  <span style={{ marginLeft: 'auto', fontWeight: 600, color: 'var(--ws-ink)' }}>${l.usd.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {statements.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={microLabel}>Statements · locked</div>
+          {statements.map((s) => (
+            <div key={s.id}>
+              <button
+                className="ws-linkish"
+                onClick={() => setOpenStmt(openStmt === s.id ? null : s.id)}
+                style={{ ...linkBtn, width: '100%', display: 'flex', gap: 10, alignItems: 'baseline', textAlign: 'left', padding: '6px 0' }}
+              >
+                <span style={{ fontWeight: 600, color: 'var(--ws-ink)' }}>{statementNumber(s.seq)}</span>
+                <span style={{ fontSize: 12.5, color: 'var(--ws-muted)' }}>
+                  {day(s.period_start)} to {day(s.period_end)} · {s.calls} calls
+                </span>
+                <span style={{ marginLeft: 'auto', fontWeight: 600, color: 'var(--ws-ink)' }}>${Number(s.total_usd).toFixed(2)}</span>
+                <span style={{ fontSize: 12, color: 'var(--ws-muted)' }}>{openStmt === s.id ? '▴' : '▾'}</span>
+              </button>
+              {openStmt === s.id && <StatementCard s={s} email={email} />}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** The unofficial invoice: a locked usage statement, presented properly. */
+function StatementCard({ s, email }: { s: BillingStatement; email: string }) {
+  const day = (iso?: string | null) => (iso ? String(iso).slice(0, 10) : '')
+  return (
+    <div style={{ background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border-strong)', borderRadius: 'var(--ws-radius-md)', padding: 'var(--ws-space-5)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontFamily: 'var(--ws-font-display)', letterSpacing: '0.3em', fontSize: 14, color: 'var(--ws-ink)' }}>WINE&nbsp;SNOB</span>
+        <span style={{ marginLeft: 'auto', fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ws-bordeaux)' }}>
+          Usage statement · {statementNumber(s.seq)}
+        </span>
+      </div>
+      <div style={{ fontSize: 12.5, color: 'var(--ws-muted)', lineHeight: 1.6 }}>
+        Billed to <span style={{ color: 'var(--ws-ink)' }}>{s.user_email || email}</span>
+        <br />
+        Period {day(s.period_start)} to {day(s.period_end)}
+        {s.note ? (
+          <>
+            <br />
+            {s.note}
+          </>
+        ) : null}
+      </div>
+      <div style={{ borderTop: '0.5px solid var(--ws-border)' }}>
+        {(s.lines || []).map((l) => (
+          <div key={l.fn} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '7px 0', borderBottom: '0.5px solid var(--ws-border)', fontSize: 13.5 }}>
+            <span style={{ color: 'var(--ws-ink)' }}>{fnLabel(l.fn)}</span>
+            <span style={{ fontSize: 12, color: 'var(--ws-muted)' }}>
+              {l.calls} {l.calls === 1 ? 'call' : 'calls'}
+              {l.searches > 0 ? ` · ${l.searches} searches` : ''}
+            </span>
+            <span style={{ marginLeft: 'auto', color: 'var(--ws-ink)' }}>${Number(l.usd).toFixed(2)}</span>
+          </div>
+        ))}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '9px 0' }}>
+          <span style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ws-muted)' }}>Total</span>
+          <span style={{ marginLeft: 'auto', fontFamily: 'var(--ws-font-display)', fontSize: 20, color: 'var(--ws-ink)' }}>${Number(s.total_usd).toFixed(2)}</span>
+        </div>
+      </div>
+      <div style={{ fontSize: 11.5, color: 'var(--ws-muted)' }}>
+        Settled {day(s.created_at)} · locked · an informal usage statement, not a tax invoice
       </div>
     </div>
   )
