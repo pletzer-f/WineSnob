@@ -437,7 +437,7 @@ function BillingPanel({ userId, email, flash }: { userId: string; email: string;
       {!detail && !err && <div style={{ fontSize: 13, color: 'var(--ws-muted)' }}>Loading usage…</div>}
       {err && <div style={errText}>{err}</div>}
 
-      {credit && <CreditBlock userId={userId} credit={credit} onChanged={() => void load()} flash={flash} />}
+      {credit && <CreditBlock userId={userId} email={email} credit={credit} onChanged={() => void load()} flash={flash} />}
 
       {detail && out && (
         <div style={{ background: 'var(--ws-alabaster)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-md)', padding: 'var(--ws-space-4)', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -498,20 +498,30 @@ function BillingPanel({ userId, email, flash }: { userId: string; email: string;
   )
 }
 
-/** Prepaid credits: the live balance, manual grants, and the locked ledger. */
-function CreditBlock({ userId, credit, onChanged, flash }: { userId: string; credit: CreditDetail; onChanged: () => void; flash: (m: string, ms?: number) => void }) {
+/** Prepaid credits: the live balance, manual grants, and the locked ledger.
+ * Every grant is confirmed once in a small dialog before it is written. */
+function CreditBlock({ userId, email, credit, onChanged, flash }: { userId: string; email: string; credit: CreditDetail; onChanged: () => void; flash: (m: string, ms?: number) => void }) {
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
+  const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [ledgerOpen, setLedgerOpen] = useState(false)
 
-  const grant = async (amt?: number) => {
-    const value = amt ?? Number(amount)
-    if (!Number.isFinite(value) || value === 0) {
+  const value = Number(amount)
+  const valid = Number.isFinite(value) && value !== 0 && Math.abs(value) <= 500
+
+  const askToGrant = () => {
+    if (!valid) {
       setErr('Enter an amount, e.g. 25 (or negative to correct).')
       return
     }
+    setErr(null)
+    setConfirming(true)
+  }
+
+  const grant = async () => {
+    setConfirming(false)
     setBusy(true)
     setErr(null)
     try {
@@ -541,13 +551,6 @@ function CreditBlock({ userId, credit, onChanged, flash }: { userId: string; cre
         </div>
         {credit.balance < -10 && <Tag tone="accent">AI paused</Tag>}
         {low && credit.balance >= -10 && <Tag tone="cellar">Overdrawn</Tag>}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-          {[5, 25, 100].map((v) => (
-            <button key={v} className="ws-hairline-btn" onClick={() => void grant(v)} disabled={busy} style={{ background: 'none', border: '0.5px solid var(--ws-border)', borderRadius: 999, padding: '5px 11px', font: 'inherit', fontSize: 12.5, cursor: 'pointer', color: 'var(--ws-ink)' }}>
-              +${v}
-            </button>
-          ))}
-        </div>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <div style={{ width: 110 }}>
@@ -556,11 +559,38 @@ function CreditBlock({ userId, credit, onChanged, flash }: { userId: string; cre
         <div style={{ flex: 1, minWidth: 150 }}>
           <TextField label="Note (optional)" placeholder="e.g. Paid by bank transfer" value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
-        <Button variant="primary" size="sm" onClick={() => void grant()} disabled={busy}>
+        <Button variant="primary" size="sm" onClick={askToGrant} disabled={busy}>
           {busy ? 'Granting…' : 'Grant'}
         </Button>
       </div>
       {err && <div style={errText}>{err}</div>}
+
+      {confirming && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 310, background: 'rgba(31, 27, 24, 0.32)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--ws-space-5)' }} onClick={() => setConfirming(false)}>
+          <div style={{ background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-lg)', boxShadow: 'var(--ws-shadow)', padding: 'var(--ws-space-5)', width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 12 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 19, color: 'var(--ws-ink)' }}>
+              {value > 0 ? 'Grant credit?' : 'Apply correction?'}
+            </div>
+            <div style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--ws-ink)' }}>
+              {value > 0 ? 'Grant ' : 'Deduct '}
+              <strong>${Math.abs(value).toFixed(2)}</strong>
+              {value > 0 ? ' to ' : ' from '}
+              <span style={{ overflowWrap: 'anywhere' }}>{email}</span>.
+              {note.trim() ? ` Note: ${note.trim()}` : ''}
+              {' '}The ledger is permanent; a mistake is corrected with a new entry, never undone.
+            </div>
+            <div className="ws-modal-actions">
+              <div className="ws-modal-actions__spacer" />
+              <Button variant="secondary" onClick={() => setConfirming(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={() => void grant()}>
+                {value > 0 ? `Grant $${Math.abs(value).toFixed(2)}` : `Deduct $${Math.abs(value).toFixed(2)}`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       {credit.entries.length > 0 && (
         <div>
           <button className="ws-linkish" onClick={() => setLedgerOpen((v) => !v)} style={{ ...linkBtn, fontSize: 12.5 }}>
