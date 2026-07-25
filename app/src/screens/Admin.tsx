@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button, Logo, Tag, TextField } from 'winesnob-design-system'
 import { useStore } from '@/store/store'
 import { hasSupabase, supabase } from '@/lib/supabase'
-import { adminCall, fnLabel, generatePassword, statementNumber, type AdminOverview, type AdminUser, type BillingStatement, type UsageDetail, type WhoAmI } from '@/data/admin'
+import { adminCall, fnLabel, generatePassword, statementNumber, type AdminOverview, type AdminUser, type BillingStatement, type CreditDetail, type UsageDetail, type WhoAmI } from '@/data/admin'
 
 type Step = 'checking' | 'auth' | 'denied' | 'dash' | 'unavailable'
 
@@ -376,6 +376,7 @@ function UserRow({ u, self, onChanged, flash }: { u: AdminUser; self: boolean; o
 function BillingPanel({ userId, email, flash }: { userId: string; email: string; flash: (m: string, ms?: number) => void }) {
   const [detail, setDetail] = useState<UsageDetail | null>(null)
   const [statements, setStatements] = useState<BillingStatement[]>([])
+  const [credit, setCredit] = useState<CreditDetail | null>(null)
   const [openStmt, setOpenStmt] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [armed, setArmed] = useState(false)
@@ -384,12 +385,14 @@ function BillingPanel({ userId, email, flash }: { userId: string; email: string;
   const load = async () => {
     setErr(null)
     try {
-      const [d, s] = await Promise.all([
+      const [d, s, c] = await Promise.all([
         adminCall<UsageDetail>('usageDetail', { userId }),
         adminCall<{ statements: BillingStatement[] }>('listStatements', { userId }),
+        adminCall<CreditDetail>('creditDetail', { userId }),
       ])
       setDetail(d)
       setStatements(s.statements)
+      setCredit(c)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not load billing')
     }
@@ -433,6 +436,8 @@ function BillingPanel({ userId, email, flash }: { userId: string; email: string;
     <div style={{ borderTop: '0.5px solid var(--ws-border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
       {!detail && !err && <div style={{ fontSize: 13, color: 'var(--ws-muted)' }}>Loading usage…</div>}
       {err && <div style={errText}>{err}</div>}
+
+      {credit && <CreditBlock userId={userId} credit={credit} onChanged={() => void load()} flash={flash} />}
 
       {detail && out && (
         <div style={{ background: 'var(--ws-alabaster)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-md)', padding: 'var(--ws-space-4)', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -487,6 +492,93 @@ function BillingPanel({ userId, email, flash }: { userId: string; email: string;
               {openStmt === s.id && <StatementCard s={s} email={email} />}
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Prepaid credits: the live balance, manual grants, and the locked ledger. */
+function CreditBlock({ userId, credit, onChanged, flash }: { userId: string; credit: CreditDetail; onChanged: () => void; flash: (m: string, ms?: number) => void }) {
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [ledgerOpen, setLedgerOpen] = useState(false)
+
+  const grant = async (amt?: number) => {
+    const value = amt ?? Number(amount)
+    if (!Number.isFinite(value) || value === 0) {
+      setErr('Enter an amount, e.g. 25 (or negative to correct).')
+      return
+    }
+    setBusy(true)
+    setErr(null)
+    try {
+      const res = await adminCall<{ balance: number }>('grantCredits', { userId, amountUsd: value, note: note.trim() || undefined })
+      flash(`${value > 0 ? '+' : ''}$${value.toFixed(2)} granted. Balance: $${res.balance.toFixed(2)}`, 3800)
+      setAmount('')
+      setNote('')
+      onChanged()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not grant credits')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const day = (iso: string) => iso.slice(0, 10)
+  const low = credit.balance < 0
+
+  return (
+    <div style={{ background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-md)', padding: 'var(--ws-space-4)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+        <div>
+          <div style={microLabel}>Credit balance</div>
+          <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 24, lineHeight: 1, color: low ? 'var(--ws-bordeaux)' : 'var(--ws-ink)' }}>
+            ${credit.balance.toFixed(2)}
+          </div>
+        </div>
+        {credit.balance < -10 && <Tag tone="accent">AI paused</Tag>}
+        {low && credit.balance >= -10 && <Tag tone="cellar">Overdrawn</Tag>}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          {[5, 25, 100].map((v) => (
+            <button key={v} className="ws-hairline-btn" onClick={() => void grant(v)} disabled={busy} style={{ background: 'none', border: '0.5px solid var(--ws-border)', borderRadius: 999, padding: '5px 11px', font: 'inherit', fontSize: 12.5, cursor: 'pointer', color: 'var(--ws-ink)' }}>
+              +${v}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ width: 110 }}>
+          <TextField label="Amount $" placeholder="25" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </div>
+        <div style={{ flex: 1, minWidth: 150 }}>
+          <TextField label="Note (optional)" placeholder="e.g. Paid by bank transfer" value={note} onChange={(e) => setNote(e.target.value)} />
+        </div>
+        <Button variant="primary" size="sm" onClick={() => void grant()} disabled={busy}>
+          {busy ? 'Granting…' : 'Grant'}
+        </Button>
+      </div>
+      {err && <div style={errText}>{err}</div>}
+      {credit.entries.length > 0 && (
+        <div>
+          <button className="ws-linkish" onClick={() => setLedgerOpen((v) => !v)} style={{ ...linkBtn, fontSize: 12.5 }}>
+            {ledgerOpen ? 'Hide ledger' : `Ledger · ${credit.entries.length} entries`}
+          </button>
+          {ledgerOpen && (
+            <div style={{ borderTop: '0.5px solid var(--ws-border)', marginTop: 6 }}>
+              {credit.entries.map((e, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '5px 0', fontSize: 12.5, borderBottom: '0.5px solid var(--ws-border)' }}>
+                  <span style={{ color: 'var(--ws-muted)' }}>{day(e.created_at)}</span>
+                  <span style={{ color: 'var(--ws-ink)' }}>{e.kind === 'usage' ? fnLabel(e.note || '') || 'Usage' : e.note || (e.kind === 'grant' ? 'Grant' : 'Adjustment')}</span>
+                  <span style={{ marginLeft: 'auto', fontWeight: 600, color: e.delta_usd < 0 ? 'var(--ws-bordeaux)' : 'var(--ws-green, #2f5d3a)' }}>
+                    {e.delta_usd > 0 ? '+' : ''}${e.delta_usd.toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

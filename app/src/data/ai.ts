@@ -1,6 +1,17 @@
 import { hasSupabase, supabase } from '@/lib/supabase'
 import type { RawRead } from '@/store/store'
 
+/** Surface the edge function's own message from a non-2xx response (e.g.
+ * the credit gate's "top up" notice) instead of a generic error. */
+async function fnError(error: unknown): Promise<Error> {
+  const ctx = (error as { context?: Response }).context
+  if (ctx && typeof ctx.json === 'function') {
+    const body = await ctx.json().catch(() => null)
+    if (body?.error) return new Error(body.error)
+  }
+  return error instanceof Error ? error : new Error(String(error))
+}
+
 /** Read wine labels from photos. Calls the `read-label` Edge Function when a
  * Supabase project is configured; otherwise returns demo reads so the flow is
  * fully explorable offline. */
@@ -12,7 +23,7 @@ export async function readLabels(files: File[], mode: 'label' | 'case' | 'voice'
     const { data, error } = await supabase.functions.invoke('read-label', {
       body: { images, mode },
     })
-    if (error) throw error
+    if (error) throw await fnError(error)
     const reads = (data?.reads ?? []) as RawRead[]
     if (!reads.length) throw new Error('No wines were read from that photo.')
     return reads
@@ -27,7 +38,7 @@ export async function parseImport(file: File): Promise<RawRead[]> {
     const { data, error } = await supabase.functions.invoke('parse-import', {
       body: { file: content, filename: file.name },
     })
-    if (error) throw error
+    if (error) throw await fnError(error)
     return (data?.reads ?? []) as RawRead[]
   }
   return caseBatch()
@@ -74,7 +85,7 @@ export async function valueCellar(bottles: ValuationInput[], currency: string): 
   const out: ValuationResult = { configured: true, provider: 'Wine-Searcher', results: [] }
   for (const chunk of chunks) {
     const { data, error } = await supabase.functions.invoke('value-cellar', { body: { bottles: chunk, currency } })
-    if (error) throw error
+    if (error) throw await fnError(error)
     if (data?.error) throw new Error(data.error)
     if (!data?.configured) return { configured: false, provider: data?.provider || 'Wine-Searcher', results: [] }
     out.provider = data.provider || out.provider
@@ -116,7 +127,7 @@ export interface SomTurnPayload {
 export async function askSommelier(turns: SomTurnPayload[], context: Record<string, unknown>): Promise<SomResult> {
   if (hasSupabase) {
     const { data, error } = await supabase.functions.invoke('sommelier', { body: { turns, context } })
-    if (error) throw error
+    if (error) throw await fnError(error)
     if (data?.error) throw new Error(data.error)
     return {
       reply: data?.reply || '',

@@ -240,6 +240,47 @@ Deno.serve(async (req: Request) => {
         const rows = await rest(`billing_statements?select=*${filter}&order=created_at.desc&limit=200`)
         return json({ statements: rows || [] })
       }
+
+      // ---- credits ----
+
+      case 'grantCredits': {
+        // Full manual control: the admin decides every cent. Grants are
+        // append-only ledger entries; the trigger-locked ledger cannot be
+        // edited afterwards, so a mistaken grant is corrected by a new
+        // negative 'adjustment', never by rewriting history.
+        const { userId, amountUsd, note } = body
+        const amt = Number(amountUsd)
+        if (!userId) return json({ error: 'User is required.' }, 400)
+        if (!Number.isFinite(amt) || amt === 0 || Math.abs(amt) > 500) {
+          return json({ error: 'Amount must be between -500 and 500 dollars, and not zero.' }, 400)
+        }
+        await rest('credit_ledger', {
+          method: 'POST',
+          headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify({
+            user_id: userId,
+            delta_usd: Math.round(amt * 100) / 100,
+            kind: amt > 0 ? 'grant' : 'adjustment',
+            note: note || null,
+            created_by: me.id,
+          }),
+        })
+        const bal = await rest(`credit_balances?user_id=eq.${userId}&select=balance_usd`)
+        return json({ ok: true, balance: Number((bal as any[])?.[0]?.balance_usd ?? 0) })
+      }
+
+      case 'creditDetail': {
+        const { userId } = body
+        if (!userId) return json({ error: 'User is required.' }, 400)
+        const [bal, entries] = await Promise.all([
+          rest(`credit_balances?user_id=eq.${userId}&select=balance_usd`),
+          rest(`credit_ledger?select=delta_usd,kind,note,created_at&user_id=eq.${userId}&order=created_at.desc&limit=20`),
+        ])
+        return json({
+          balance: Number((bal as any[])?.[0]?.balance_usd ?? 0),
+          entries: entries || [],
+        })
+      }
       default:
         return json({ error: `Unknown action: ${action}` }, 400)
     }

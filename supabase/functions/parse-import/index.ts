@@ -114,8 +114,52 @@ function logUsage(req: Request | undefined, fn: string, usage: unknown) {
   }
 }
 
+
+// ---- credit gate: signed-in users only; new work pauses below the floor ----
+// The ledger meters every cent regardless (a database trigger on ai_usage);
+// this gate only decides whether NEW work may start. A task already under
+// way (any usage in the last 3 minutes) may always finish, so chunked runs
+// never die halfway. On internal errors the gate fails open: it must never
+// take a feature down.
+const CREDIT_FLOOR = -10
+async function creditGate(req: Request): Promise<Response | null> {
+  let claims: { role?: string; sub?: string } = {}
+  try {
+    const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
+    const payload = token.split('.')[1] || ''
+    const b64 = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '=')
+    claims = JSON.parse(atob(b64))
+  } catch (_) {
+    claims = {}
+  }
+  if (claims.role !== 'authenticated' || !claims.sub) {
+    return json({ error: 'Sign in to use the AI features.' }, 401)
+  }
+  try {
+    const svc = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    const base = Deno.env.get('SUPABASE_URL')
+    if (!svc || !base) return null
+    const h = { apikey: svc, Authorization: `Bearer ${svc}` }
+    const since = new Date(Date.now() - 180000).toISOString()
+    const [balRes, activeRes] = await Promise.all([
+      fetch(`${base}/rest/v1/credit_balances?user_id=eq.${claims.sub}&select=balance_usd`, { headers: h }),
+      fetch(`${base}/rest/v1/ai_usage?user_id=eq.${claims.sub}&created_at=gte.${encodeURIComponent(since)}&select=id&limit=1`, { headers: h }),
+    ])
+    const bal = balRes.ok ? Number(((await balRes.json()) as { balance_usd?: number }[])?.[0]?.balance_usd ?? 0) : 0
+    const active = activeRes.ok ? (((await activeRes.json()) as unknown[])?.length ?? 0) > 0 : false
+    if (bal < CREDIT_FLOOR && !active) {
+      return json({ error: 'Your usage credit is used up. Ask your administrator to top up, then try again.', code: 'credit_floor' }, 402)
+    }
+  } catch (_) {
+    // fail open
+  }
+  return null
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const gated = await creditGate(req)
+  if (gated) return gated
   try {
     const { file, filename = '' } = await req.json()
     if (!file) return json({ error: 'No file provided.' }, 400)

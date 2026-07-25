@@ -84,6 +84,7 @@ export function App() {
     const t = setTimeout(() => {
       const st = useStore.getState()
       st.recordSnapshot()
+      void st.refreshCredits()
       if (st.settings.autoValue && st.bottles.length) void st.refreshValuations(false)
     }, 4000)
     return () => clearTimeout(t)

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { askSommelier, valueCellar, type SomPick } from '@/data/ai'
 import { demoPhotoDataUrl, uploadLabelPhoto, type LabelUrls } from '@/data/labels'
+import { fetchCreditBalance } from '@/data/credits'
 import { hasSupabase } from '@/lib/supabase'
 import { bottleValue, unitValueNow } from '@/domain/valuation'
 import { allocation, costBasis, movers, totalReturn, type BottlePrice, type Snapshot } from '@/domain/portfolio'
@@ -232,6 +233,8 @@ export interface StoreState {
   deskNoteBusy: boolean
   /** When the manual "price my cellar" button last ran (once a month at most). */
   manualValuedAt: string | null
+  /** The user's usage-credit balance in USD (null until known). */
+  creditBalance: number | null
 
   // admin console
   adminOpen: boolean
@@ -339,6 +342,7 @@ export interface StoreActions {
   // portfolio
   recordSnapshot: () => void
   refreshDeskNote: () => Promise<void>
+  refreshCredits: () => Promise<void>
   /** Regenerate the desk note when the figures it cites have moved. */
   ensureDeskNoteFresh: () => void
 
@@ -616,6 +620,7 @@ const initialState: StoreState = {
   portfolioNote: null,
   deskNoteBusy: false,
   manualValuedAt: null,
+  creditBalance: null,
   adminOpen: false,
   pwRecovery: false,
   wishOpen: false,
@@ -906,6 +911,7 @@ export const useStore = create<Store>((set, get) => {
         if (force) get().flash('Could not refresh valuations just now')
       } finally {
         set({ valuationBusy: false })
+        void get().refreshCredits()
       }
     },
 
@@ -931,6 +937,11 @@ export const useStore = create<Store>((set, get) => {
       get()._persist()
       if (s.userId && snapshotSink) snapshotSink(s.userId, snap, s.settings.currency)
     },
+    refreshCredits: async () => {
+      const bal = await fetchCreditBalance()
+      if (bal != null) set({ creditBalance: bal })
+    },
+
     refreshDeskNote: async () => {
       const s = get()
       if (!hasSupabase || !s.bottles.length || s.deskNoteBusy) return

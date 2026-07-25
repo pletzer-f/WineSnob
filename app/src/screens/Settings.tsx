@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Avatar, Button, SectionHeader, SettingsRow, Switch, Select } from 'winesnob-design-system'
 import { useStore } from '@/store/store'
 import { exportCellarCSV, exportWorkbook, type ExportInput } from '@/data/exporter'
+import { CREDIT_FLOOR_USD, SOMMELIER_COST_USD, VALUATION_COST_USD } from '@/data/credits'
 import type { Currency, PriceCadence, ViewMode } from '@/domain/types'
 
 // Euro only for now: values do not convert between currencies yet, so the
@@ -72,6 +73,29 @@ export function Settings() {
     void s.refreshValuations(true)
   }
 
+  // Usage credits: the balance, and what it buys in plain terms.
+  useEffect(() => {
+    void s.refreshCredits()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const bal = s.creditBalance
+  const balKnown = bal != null
+  const negative = balKnown && bal < 0
+  const floored = balKnown && bal < CREDIT_FLOOR_USD
+  const valuationsLeft = balKnown ? Math.max(0, Math.floor(bal / VALUATION_COST_USD)) : 0
+  const questionsLeft = balKnown ? Math.max(0, Math.floor(bal / SOMMELIER_COST_USD)) : 0
+  const creditDesc = !balKnown
+    ? 'Your balance loads with the live backend.'
+    : floored
+      ? 'Your credit is used up and AI features are paused. Ask your administrator to top up.'
+      : negative
+        ? 'You are drawing on courtesy credit. Please ask your administrator to top up.'
+        : bal === 0
+          ? 'No credit yet. Your administrator can grant a starting balance.'
+          : `Roughly ${valuationsLeft} bottle ${valuationsLeft === 1 ? 'valuation' : 'valuations'} or ${questionsLeft} sommelier questions.`
+  const runCost = Math.max(1, Math.round(wineCount * VALUATION_COST_USD))
+  const afterRun = balKnown ? bal - runCost : null
+
   return (
     <div className="ws-mobile-pad" style={page}>
       <div>
@@ -95,6 +119,19 @@ export function Settings() {
       <Group title="Notifications">
         <SettingsRow label="Drink-window reminders" description="Tell me when a wine enters its window" control={<Switch checked={S.reminders} onChange={(c) => s.toggleSetting('reminders', c)} label="Drink-window reminders" />} />
         <SettingsRow label="Weekly cellar digest" description="A Sunday summary of value and what’s ready" control={<Switch checked={S.weekly} onChange={(c) => s.toggleSetting('weekly', c)} label="Weekly cellar digest" />} />
+      </Group>
+
+      {/* usage credits */}
+      <Group title="Usage credits">
+        <SettingsRow
+          label="Balance"
+          description={creditDesc}
+          control={
+            <span style={{ fontFamily: 'var(--ws-font-display)', fontSize: 22, color: floored || negative ? 'var(--ws-bordeaux)' : 'var(--ws-ink)' }}>
+              {balKnown ? `$${bal.toFixed(2)}` : '·'}
+            </span>
+          }
+        />
       </Group>
 
       {/* valuation */}
@@ -122,6 +159,14 @@ export function Settings() {
               <strong>${estUsd}</strong> in AI usage, and manual pricing is available once a month. Your automatic
               schedule keeps running either way.
             </div>
+            {balKnown && (
+              <div style={{ fontSize: 13, lineHeight: 1.5, color: afterRun != null && afterRun < 0 ? 'var(--ws-bordeaux)' : 'var(--ws-muted)' }}>
+                You hold <strong>${bal.toFixed(2)}</strong> in credit.
+                {afterRun != null && afterRun < 0
+                  ? ` This run would overdraw your balance by about $${Math.abs(afterRun).toFixed(2)}.`
+                  : ` About $${afterRun?.toFixed(2)} would remain.`}
+              </div>
+            )}
             <div className="ws-modal-actions">
               <div className="ws-modal-actions__spacer" />
               <Button variant="secondary" onClick={() => setValConfirm(false)}>

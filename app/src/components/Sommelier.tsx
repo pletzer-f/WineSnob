@@ -87,11 +87,10 @@ function SommelierSheet() {
       const res = await askSommelier(payload, buildContext(useStore.getState()))
       useStore.getState().somPush({ role: 'sommelier', text: res.reply, picks: res.picks, quickReplies: res.quickReplies, raw: res.raw })
     } catch (e) {
-      useStore.getState().somPush({
-        role: 'sommelier',
-        text: 'Forgive me, I lost my train of thought. Ask me once more.',
-        error: true,
-      })
+      // The credit gate's notices deserve their own words; anything else
+      // stays a graceful apology.
+      const msg = e instanceof Error && /credit|sign in/i.test(e.message) ? e.message : 'Forgive me, I lost my train of thought. Ask me once more.'
+      useStore.getState().somPush({ role: 'sommelier', text: msg, error: true })
       console.error('sommelier', e)
     } finally {
       useStore.getState().setSomBusy(false)

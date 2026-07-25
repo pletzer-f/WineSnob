@@ -66,6 +66,18 @@ export interface BillingStatement {
   created_at: string
 }
 
+export interface CreditEntry {
+  delta_usd: number
+  kind: 'grant' | 'usage' | 'adjustment'
+  note: string | null
+  created_at: string
+}
+
+export interface CreditDetail {
+  balance: number
+  entries: CreditEntry[]
+}
+
 /** Human names for the AI features, for cost breakdowns and statements. */
 export function fnLabel(fn: string): string {
   const map: Record<string, string> = {
@@ -132,6 +144,18 @@ const demoUnbilled = new Map<string, UsageLine[]>([
 const demoStatements: BillingStatement[] = []
 let demoSeq = 0
 
+const demoCredits = new Map<string, CreditEntry[]>([
+  ['demo-owner', [
+    { delta_usd: 25, kind: 'grant', note: 'Opening balance', created_at: '2026-07-12T09:00:00Z' },
+    { delta_usd: -8.4, kind: 'usage', note: 'value-cellar', created_at: '2026-07-18T11:00:00Z' },
+    { delta_usd: -4.2, kind: 'usage', note: 'winery-profile', created_at: '2026-07-20T15:00:00Z' },
+  ]],
+  ['demo-guest', [
+    { delta_usd: 5, kind: 'grant', note: 'Welcome credit', created_at: '2026-07-02T10:00:00Z' },
+    { delta_usd: -1.41, kind: 'usage', note: 'read-label', created_at: '2026-07-19T18:00:00Z' },
+  ]],
+])
+
 function demoAdmin(action: string, params: Record<string, unknown>): unknown {
   const userId = String(params.userId || '')
   switch (action) {
@@ -179,6 +203,17 @@ function demoAdmin(action: string, params: Record<string, unknown>): unknown {
     }
     case 'listStatements':
       return { statements: userId ? demoStatements.filter((s) => s.user_id === userId) : demoStatements }
+    case 'creditDetail': {
+      const entries = demoCredits.get(userId) || []
+      return { balance: Math.round(entries.reduce((a, e) => a + e.delta_usd, 0) * 100) / 100, entries: entries.slice().reverse() }
+    }
+    case 'grantCredits': {
+      const amt = Number(params.amountUsd)
+      const entries = demoCredits.get(userId) || []
+      entries.push({ delta_usd: amt, kind: amt > 0 ? 'grant' : 'adjustment', note: (params.note as string) || null, created_at: new Date().toISOString() })
+      demoCredits.set(userId, entries)
+      return { ok: true, balance: Math.round(entries.reduce((a, e) => a + e.delta_usd, 0) * 100) / 100 }
+    }
     default:
       throw new Error('This action needs the live backend.')
   }
