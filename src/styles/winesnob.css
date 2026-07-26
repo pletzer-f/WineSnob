@@ -186,6 +186,33 @@
   color: var(--ws-muted);
   opacity: 0.7;
 }
+/* Native date fields, tamed. iOS draws them as centered system pills with
+   their own height and ignores the input padding; strip the native look so
+   they sit exactly like every other input. The min-height matters: once the
+   appearance is stripped, an empty date input collapses on iOS. */
+input.ws-input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: flex;
+  align-items: center;
+  /* Exactly the height of a text .ws-input (15px line + 22px padding +
+     border); the browser's internal date editor otherwise adds its own. */
+  height: 41px;
+  padding-top: 0;
+  padding-bottom: 0;
+  text-align: left;
+}
+input.ws-input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+}
+input.ws-input[type='date']::-webkit-calendar-picker-indicator {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  opacity: 0.55;
+}
 .ws-input:focus,
 .ws-selectctl:focus {
   outline: none;
