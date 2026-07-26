@@ -137,6 +137,14 @@ export interface Settings {
   defaultView: ViewMode
 }
 
+/** The collector's own insurance policy facts (all optional, user-entered). */
+export interface Policy {
+  insurer: string
+  declared: number | null
+  renewal: string | null
+  itemLimit: number | null
+}
+
 export interface Account {
   name: string
   email: string

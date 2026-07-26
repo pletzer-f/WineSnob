@@ -42,6 +42,10 @@ function profileRow(userId: string, d: PersistData) {
     manual_valued_at: d.manualValuedAt ?? null,
     portfolio_note_value: d.portfolioNote?.value ?? null,
     portfolio_note_drinks: d.portfolioNote?.drinks ?? null,
+    policy_insurer: d.policy?.insurer || null,
+    policy_declared: d.policy?.declared ?? null,
+    policy_renewal: d.policy?.renewal || null,
+    policy_item_limit: d.policy?.itemLimit ?? null,
     updated_at: new Date().toISOString(),
   }
 }
@@ -154,6 +158,15 @@ export async function pullUserData(userId: string): Promise<PersistData | null> 
         }
       : null,
     manualValuedAt: p.manual_valued_at || null,
+    policy:
+      p.policy_insurer || p.policy_declared != null || p.policy_renewal || p.policy_item_limit != null
+        ? {
+            insurer: p.policy_insurer || '',
+            declared: p.policy_declared == null ? null : Number(p.policy_declared),
+            renewal: p.policy_renewal || null,
+            itemLimit: p.policy_item_limit == null ? null : Number(p.policy_item_limit),
+          }
+        : null,
   }
 }
 

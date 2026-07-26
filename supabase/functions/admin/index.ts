@@ -63,7 +63,7 @@ function monthAgoISO(): string {
 }
 
 async function listUsers() {
-  const [authList, profiles, bottles, drinks, wishes, usage, admins] = await Promise.all([
+  const [authList, profiles, bottles, drinks, wishes, usage, admins, ents] = await Promise.all([
     authAdmin('users?page=1&per_page=200'),
     rest('profiles?select=user_id,name,onboarded,currency'),
     rest('bottles?select=user_id,quantity,unit,market_unit'),
@@ -71,10 +71,12 @@ async function listUsers() {
     rest('wishlist?select=user_id'),
     rest(`ai_usage?select=user_id,cost_usd,created_at&created_at=gte.${monthAgoISO()}`),
     rest('admin_users?select=user_id'),
+    rest('entitlements?select=user_id,insurance'),
   ])
   const users = (authList?.users || authList || []) as any[]
   const pmap = new Map((profiles as any[]).map((p) => [p.user_id, p]))
   const adminSet = new Set((admins as any[]).map((a) => a.user_id))
+  const insuranceSet = new Set((ents as any[]).filter((e) => e.insurance).map((e) => e.user_id))
 
   const agg = <T>(rows: any[], fold: (acc: T, r: any) => T, zero: T) => {
     const m = new Map<string, T>()
@@ -105,6 +107,7 @@ async function listUsers() {
         aiCost30d: Math.round((uAgg.get(u.id)?.cost || 0) * 100) / 100,
         aiCalls30d: uAgg.get(u.id)?.calls || 0,
         isAdmin: adminSet.has(u.id),
+        insurance: insuranceSet.has(u.id),
       }
     })
     .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))
@@ -267,6 +270,26 @@ Deno.serve(async (req: Request) => {
         })
         const bal = await rest(`credit_balances?user_id=eq.${userId}&select=balance_usd`)
         return json({ ok: true, balance: Number((bal as any[])?.[0]?.balance_usd ?? 0) })
+      }
+
+      case 'setEntitlement': {
+        // The insurance tier is granted or withdrawn here and nowhere else:
+        // the entitlements table has no user-facing write policies, and the
+        // attestation RPC checks it server-side.
+        const { userId, key, value } = body
+        if (!userId) return json({ error: 'User is required.' }, 400)
+        if (key !== 'insurance') return json({ error: `Unknown entitlement: ${key}` }, 400)
+        await rest('entitlements', {
+          method: 'POST',
+          headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify({
+            user_id: userId,
+            insurance: !!value,
+            updated_by: me.id,
+            updated_at: new Date().toISOString(),
+          }),
+        })
+        return json({ ok: true, insurance: !!value })
       }
 
       case 'creditDetail': {

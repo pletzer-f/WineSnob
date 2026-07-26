@@ -3,6 +3,7 @@ import { Avatar, Button, SectionHeader, SettingsRow, Switch, Select } from 'wine
 import { useStore } from '@/store/store'
 import { exportCellarCSV, exportWorkbook, type ExportInput } from '@/data/exporter'
 import { CREDIT_FLOOR_USD, SOMMELIER_COST_USD, VALUATION_COST_USD } from '@/data/credits'
+import { fetchInsuranceEntitled } from '@/data/insurance'
 import type { Currency, PriceCadence, ViewMode } from '@/domain/types'
 
 // Euro only for now: values do not convert between currencies yet, so the
@@ -78,6 +79,12 @@ export function Settings() {
     void s.refreshCredits()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // The insurance suite shows only for accounts holding the tier.
+  const [insEntitled, setInsEntitled] = useState(false)
+  useEffect(() => {
+    void fetchInsuranceEntitled().then(setInsEntitled)
+  }, [])
   const bal = s.creditBalance
   const balKnown = bal != null
   const negative = balKnown && bal < 0
@@ -133,6 +140,17 @@ export function Settings() {
           }
         />
       </Group>
+
+      {/* insurance (admin-granted tier) */}
+      {insEntitled && (
+        <Group title="Insurance">
+          <SettingsRow
+            label="Insurance suite"
+            description="Declared cover against live value, sealed inventory records, and the documents your broker asks for"
+            control={<Button variant="secondary" onClick={s.openInsurance}>Open</Button>}
+          />
+        </Group>
+      )}
 
       {/* valuation */}
       <Group title="Valuation">

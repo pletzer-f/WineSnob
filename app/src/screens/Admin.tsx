@@ -291,6 +291,20 @@ function UserRow({ u, self, onChanged, flash }: { u: AdminUser; self: boolean; o
     }
   }
 
+  const toggleInsurance = async () => {
+    setBusy(true)
+    setErr(null)
+    try {
+      await adminCall('setEntitlement', { userId: u.id, key: 'insurance', value: !u.insurance })
+      flash(u.insurance ? `Insurance tier withdrawn from ${u.email}` : `Insurance tier granted to ${u.email}`, 3200)
+      onChanged()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not update the insurance tier')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const del = async () => {
     if (!armed) {
       setArmed(true)
@@ -315,6 +329,7 @@ function UserRow({ u, self, onChanged, flash }: { u: AdminUser; self: boolean; o
         <span style={{ fontFamily: 'var(--ws-font-display)', fontSize: 17, color: 'var(--ws-ink)', overflowWrap: 'anywhere' }}>{u.email}</span>
         {u.name && <span style={{ fontSize: 13, color: 'var(--ws-muted)' }}>{u.name}</span>}
         {u.isAdmin && <Tag tone="accent">Admin</Tag>}
+        {u.insurance && <Tag tone="ready">Insurance</Tag>}
         {!u.confirmed && <Tag tone="cellar">Unconfirmed</Tag>}
         <span style={{ marginLeft: 'auto', fontSize: 13.5, fontWeight: 600, color: u.aiCost30d > 0 ? 'var(--ws-ink)' : 'var(--ws-muted)' }}>
           ${u.aiCost30d.toFixed(2)} <span style={{ fontWeight: 400, color: 'var(--ws-muted)' }}>· AI 30d</span>
@@ -350,6 +365,9 @@ function UserRow({ u, self, onChanged, flash }: { u: AdminUser; self: boolean; o
         </button>
         <button className="ws-linkish" onClick={() => void emailReset()} style={linkBtn} disabled={busy}>
           Email reset link
+        </button>
+        <button className="ws-linkish" onClick={() => void toggleInsurance()} style={linkBtn} disabled={busy}>
+          {u.insurance ? 'Withdraw insurance' : 'Grant insurance'}
         </button>
         <div style={{ flex: 1 }} />
         {self ? (

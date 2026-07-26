@@ -17,6 +17,7 @@ import type {
   FormatKey,
   Measure,
   OccasionKey,
+  Policy,
   PriceCadence,
   Priority,
   Settings,
@@ -236,6 +237,10 @@ export interface StoreState {
   /** The user's usage-credit balance in USD (null until known). */
   creditBalance: number | null
 
+  // insurance
+  policy: Policy | null
+  insuranceOpen: boolean
+
   // admin console
   adminOpen: boolean
 
@@ -345,6 +350,11 @@ export interface StoreActions {
   refreshCredits: () => Promise<void>
   /** Regenerate the desk note when the figures it cites have moved. */
   ensureDeskNoteFresh: () => void
+
+  // insurance
+  openInsurance: () => void
+  closeInsurance: () => void
+  setPolicy: (patch: Partial<Policy>) => void
 
   // admin console
   openAdmin: () => void
@@ -530,6 +540,7 @@ function snapshot(s: StoreState): PersistData {
     bottlePrices: s.bottlePrices,
     portfolioNote: s.portfolioNote,
     manualValuedAt: s.manualValuedAt,
+    policy: s.policy,
   }
 }
 
@@ -621,6 +632,8 @@ const initialState: StoreState = {
   deskNoteBusy: false,
   manualValuedAt: null,
   creditBalance: null,
+  policy: null,
+  insuranceOpen: false,
   adminOpen: false,
   pwRecovery: false,
   wishOpen: false,
@@ -688,6 +701,7 @@ export const useStore = create<Store>((set, get) => {
         bottlePrices: data.bottlePrices || [],
         portfolioNote: data.portfolioNote || null,
         manualValuedAt: data.manualValuedAt || null,
+        policy: data.policy || null,
         ready: true,
       })
     },
@@ -1000,6 +1014,14 @@ export const useStore = create<Store>((set, get) => {
       const valueMoved = n.value != null && n.value > 0 ? Math.abs(total - n.value) / n.value > 0.02 : n.value == null
       const drinksMoved = n.drinks != null && n.drinks !== s.drinks.length
       if (valueMoved || drinksMoved) void get().refreshDeskNote()
+    },
+
+    // ---- insurance ----
+    openInsurance: () => set({ insuranceOpen: true }),
+    closeInsurance: () => set({ insuranceOpen: false }),
+    setPolicy: (patch) => {
+      set((s) => ({ policy: { insurer: '', declared: null, renewal: null, itemLimit: null, ...(s.policy || {}), ...patch } }))
+      get()._persist()
     },
 
     // ---- admin console ----

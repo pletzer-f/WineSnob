@@ -5,6 +5,7 @@ import type {
   CustomCollection,
   Drink,
   Measure,
+  Policy,
   Settings,
   ViewMode,
   Wish,
@@ -34,6 +35,8 @@ export interface PersistData {
   portfolioNote?: { text: string; asOf: string; value?: number; drinks?: number } | null
   /** When the manual "price my cellar" run last happened (once a month cap). */
   manualValuedAt?: string | null
+  /** Insurance policy facts (insurer, declared sum, renewal, per-item limit). */
+  policy?: Policy | null
 }
 
 const KEY = 'winesnob:snapshot:v1'

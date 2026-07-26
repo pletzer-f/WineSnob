@@ -3,9 +3,11 @@
 // real .xlsx. SheetJS is imported lazily so it never weighs down the app
 // bundle; it only loads the moment an export is requested.
 
-import type { Bottle, Cellar, Drink, Wish } from '@/domain/types'
-import { bottleValue, hasMarketValue } from '@/domain/valuation'
+import type { Bottle, Cellar, Drink, Policy, Wish } from '@/domain/types'
+import { bottleValue, hasMarketValue, unitValueNow } from '@/domain/valuation'
 import { costBasis, totalReturn } from '@/domain/portfolio'
+import { attestationNumber, insuranceStatus, type Attestation } from '@/data/insurance'
+import { fmtDef } from '@/domain/formats'
 
 export interface ExportInput {
   cellars: Cellar[]
@@ -153,6 +155,295 @@ function download(blob: Blob, filename: string) {
 
 export function exportCellarCSV(input: ExportInput) {
   download(new Blob([cellarCSV(input)], { type: 'text/csv;charset=utf-8' }), `winesnob-cellar-${today()}.csv`)
+}
+
+// ---- insurance schedule ----
+
+export interface InsuranceInput extends ExportInput {
+  policy: Policy | null
+  attestation: Attestation | null
+  /** Resolves a bottle's photograph to a displayable URL (signed or data). */
+  photoUrl?: (b: Bottle) => string | undefined
+}
+
+const BASIS_TEXT =
+  'Values are live market prices from merchant and auction listings where available, with the pricing source and date recorded per item; positions without a credible market read stand at their recorded value. This document is an inventory and market-value statement prepared from the collector’s cellar records. It is not a certified appraisal.'
+
+const dmy = (iso?: string | null) => (iso ? iso.slice(0, 10) : '')
+
+function heldBottles(input: ExportInput): Bottle[] {
+  const order = new Map(input.cellars.map((c, i) => [c.id, i]))
+  return input.bottles
+    .filter((b) => b.quantity > 0)
+    .sort((a, b) => (order.get(a.cellarId) ?? 9) - (order.get(b.cellarId) ?? 9) || a.name.localeCompare(b.name))
+}
+
+/** The insurance cover: policy facts, totals, basis, attestation citation. */
+export function insuranceCoverSheet(input: InsuranceInput): ExportSheet {
+  const st = insuranceStatus(input.bottles, input.policy)
+  const rows: Cell[][] = [
+    ['WineSnob insurance schedule', ''],
+    ['Prepared', today()],
+    ['Policyholder', `${input.accountName} (${input.accountEmail})`],
+    ['', ''],
+    ['Insurer', input.policy?.insurer || 'not recorded'],
+    ['Declared sum', st.declared != null ? eur(st.declared) : 'not recorded'],
+    ['Per-item limit', input.policy?.itemLimit ? eur(input.policy.itemLimit) : 'not recorded'],
+    ['Policy renews', input.policy?.renewal || 'not recorded'],
+    ['', ''],
+    ['Positions', st.totalPositions],
+    ['Bottles', input.bottles.reduce((s, b) => s + (b.quantity > 0 ? b.quantity : 0), 0)],
+    ['Current value', eur(st.current)],
+    ...(st.gap != null
+      ? [[st.gap > 0 ? 'Underinsured by' : 'Headroom under declared sum', eur(Math.abs(st.gap))] as Cell[]]
+      : []),
+    ['Market-priced positions', `${st.pricedPositions} of ${st.totalPositions}${st.latestValuation ? ` (latest ${dmy(st.latestValuation)})` : ''}`],
+    ...(st.overLimit.length
+      ? [[`Items above the per-item limit`, `${st.overLimit.length} (see High-value items)`] as Cell[]]
+      : []),
+    ['', ''],
+    ...(input.attestation
+      ? [
+          ['Sealed record', `${attestationNumber(input.attestation.seq)} of ${dmy(input.attestation.createdAt)}`] as Cell[],
+          ['SHA-256', input.attestation.sha256] as Cell[],
+          ['', ''] as Cell[],
+        ]
+      : []),
+    ['Basis of valuation', BASIS_TEXT],
+  ]
+  return { name: 'Statement', rows, money: [], widths: [30, 70] }
+}
+
+/** One row per position, in the shape a broker expects. */
+export function insuranceScheduleSheet(input: InsuranceInput): ExportSheet {
+  const cellarName = new Map(input.cellars.map((c) => [c.id, c.name]))
+  const rows: Cell[][] = [
+    ['Cellar', 'Wine', 'Producer', 'Vintage', 'Format', 'Bottles', 'Region', 'Country',
+      'Acquired price / bottle', 'Value / bottle', 'Position value', 'Basis', 'Priced by', 'Priced on', 'Photograph'],
+  ]
+  for (const b of heldBottles(input)) {
+    const market = hasMarketValue(b)
+    rows.push([
+      cellarName.get(b.cellarId) ?? b.cellarId, b.name, b.producer, b.vintage,
+      fmtDef(b.format).label, b.quantity, b.region, b.country,
+      b.paid != null && b.paid > 0 ? b.paid : null,
+      round2(unitValueNow(b)), round2(bottleValue(b)),
+      market ? 'market' : 'recorded',
+      market ? (b.marketSource ?? '') : '', market ? dmy(b.marketAsOf) : '',
+      b.photo ? 'yes' : '',
+    ])
+  }
+  return {
+    name: 'Schedule',
+    rows,
+    money: [8, 9, 10],
+    widths: [12, 30, 26, 8, 12, 8, 22, 10, 15, 13, 14, 10, 16, 11, 11],
+  }
+}
+
+/** Items whose per-bottle value exceeds the policy's per-item limit. */
+export function highValueSheet(input: InsuranceInput): ExportSheet | null {
+  const st = insuranceStatus(input.bottles, input.policy)
+  if (!input.policy?.itemLimit || !st.overLimit.length) return null
+  const rows: Cell[][] = [
+    ['Wine', 'Producer', 'Vintage', 'Format', 'Value / bottle', 'Bottles', 'Position value', 'Basis', 'Priced by', 'Priced on'],
+  ]
+  for (const b of st.overLimit) {
+    rows.push([
+      b.name, b.producer, b.vintage, fmtDef(b.format).label,
+      round2(unitValueNow(b)), b.quantity, round2(bottleValue(b)),
+      hasMarketValue(b) ? 'market' : 'recorded',
+      b.marketSource ?? '', dmy(b.marketAsOf),
+    ])
+  }
+  rows.push([])
+  rows.push([`Each item above exceeds the per-item limit of ${eur(input.policy.itemLimit)} and is typically scheduled individually.`])
+  return { name: 'High-value items', rows, money: [4, 6], widths: [30, 26, 8, 12, 14, 8, 14, 10, 16, 11] }
+}
+
+export async function exportInsuranceWorkbook(input: InsuranceInput) {
+  const XLSX = await import('xlsx')
+  const wb = XLSX.utils.book_new()
+  const sheets = [insuranceCoverSheet(input), insuranceScheduleSheet(input), highValueSheet(input)].filter(
+    (s): s is ExportSheet => !!s,
+  )
+  for (const sheet of sheets) {
+    const ws = XLSX.utils.aoa_to_sheet(sheet.rows)
+    ws['!cols'] = sheet.widths.map((wch) => ({ wch }))
+    for (const c of sheet.money) {
+      for (let r = 1; r < sheet.rows.length; r++) {
+        const cell = ws[XLSX.utils.encode_cell({ r, c })]
+        if (cell && typeof cell.v === 'number') cell.z = '#,##0.00 "€"'
+      }
+    }
+    XLSX.utils.book_append_sheet(wb, ws, sheet.name)
+  }
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer
+  download(
+    new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+    `winesnob-insurance-${today()}.xlsx`
+  )
+}
+
+// ---- the typeset statement (browser print, saves to PDF) ----
+
+const escapeHtml = (s: unknown) =>
+  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
+
+export function insuranceStatementHTML(input: InsuranceInput): string {
+  const st = insuranceStatus(input.bottles, input.policy)
+  const cellarName = new Map(input.cellars.map((c) => [c.id, c.name]))
+  const held = heldBottles(input)
+  const bottleCount = held.reduce((s, b) => s + b.quantity, 0)
+  const e = escapeHtml
+
+  const scheduleRows = held
+    .map((b) => {
+      const market = hasMarketValue(b)
+      return `<tr>
+        <td>${e(cellarName.get(b.cellarId) ?? b.cellarId)}</td>
+        <td class="wine">${e(b.name)}<span class="sub">${e(b.producer)}</span></td>
+        <td>${e(b.vintage)}</td>
+        <td>${e(fmtDef(b.format).label)}</td>
+        <td class="num">${b.quantity}</td>
+        <td class="num">${b.paid != null && b.paid > 0 ? e(eur(b.paid)) : '–'}</td>
+        <td class="num">${e(eur(unitValueNow(b)))}</td>
+        <td class="num strong">${e(eur(bottleValue(b)))}</td>
+        <td class="basis">${market ? `market · ${e(dmy(b.marketAsOf))}` : 'recorded'}</td>
+      </tr>`
+    })
+    .join('')
+
+  const annex = st.overLimit
+    .map((b) => {
+      const url = input.photoUrl?.(b)
+      return `<div class="hv">
+        ${url ? `<img src="${e(url)}" alt="" />` : '<div class="hv-noimg">No photograph on file</div>'}
+        <div class="hv-body">
+          <div class="hv-name">${e(b.name)} ${e(b.vintage)}</div>
+          <div class="hv-sub">${e(b.producer)} · ${e(fmtDef(b.format).label)} · ${b.quantity} ${b.quantity === 1 ? 'bottle' : 'bottles'}</div>
+          <div class="hv-val">${e(eur(unitValueNow(b)))} per bottle · position ${e(eur(bottleValue(b)))}</div>
+          <div class="hv-basis">${hasMarketValue(b) ? `Market price · ${e(b.marketSource || '')} · ${e(dmy(b.marketAsOf))}` : 'Recorded value'}</div>
+        </div>
+      </div>`
+    })
+    .join('')
+
+  return `<!doctype html><html><head><meta charset="utf-8"><title>WineSnob insurance statement</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=Figtree:wght@400;500;600&display=swap');
+@page { size: A4; margin: 16mm 14mm; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Figtree', system-ui, sans-serif; color: #26221c; font-size: 10.5px; line-height: 1.5; }
+h1, h2, .wordmark { font-family: 'Spectral', Georgia, serif; font-weight: 500; }
+.wordmark { font-size: 13px; letter-spacing: 0.34em; text-transform: uppercase; color: #5d1a28; }
+h1 { font-size: 26px; margin: 6px 0 2px; }
+.kicker { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #8a8375; }
+.cover { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 28px; margin: 22px 0 6px; }
+.block h3 { font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: #8a8375; font-weight: 600; margin-bottom: 6px; }
+.block .line { display: flex; justify-content: space-between; gap: 12px; padding: 3.5px 0; border-bottom: 0.5px solid #e5dfd2; }
+.block .line span:last-child { font-weight: 600; text-align: right; }
+.hero { font-family: 'Spectral', Georgia, serif; font-size: 30px; }
+.gap-warn { color: #5d1a28; font-weight: 600; }
+.gap-ok { color: #274d3d; font-weight: 600; }
+.basis { color: #6d675c; }
+.basis-note { margin: 14px 0 4px; padding: 10px 12px; border: 0.5px solid #e5dfd2; background: #faf7f0; color: #57524a; font-size: 9.5px; }
+.attest { margin-top: 8px; font-size: 9.5px; color: #57524a; }
+.attest code { font-family: ui-monospace, Menlo, monospace; font-size: 8px; word-break: break-all; }
+h2 { font-size: 17px; margin: 26px 0 8px; page-break-after: avoid; }
+table { width: 100%; border-collapse: collapse; }
+th { font-size: 8.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #8a8375; text-align: left; padding: 5px 6px; border-bottom: 0.5px solid #26221c; }
+td { padding: 4.5px 6px; border-bottom: 0.5px solid #e5dfd2; vertical-align: top; }
+tr { page-break-inside: avoid; }
+td.num, th.num { text-align: right; white-space: nowrap; }
+td.strong { font-weight: 600; }
+td.wine { font-weight: 500; }
+td.wine .sub { display: block; font-weight: 400; color: #8a8375; font-size: 9px; }
+td.basis { color: #6d675c; white-space: nowrap; }
+.hv { display: flex; gap: 12px; border: 0.5px solid #e5dfd2; padding: 10px; margin-bottom: 10px; page-break-inside: avoid; align-items: center; }
+.hv img { width: 52px; height: 68px; object-fit: cover; border: 0.5px solid #e5dfd2; }
+.hv-noimg { width: 52px; height: 68px; border: 0.5px dashed #cfc8b8; color: #a09a8c; font-size: 7.5px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 4px; }
+.hv-name { font-family: 'Spectral', Georgia, serif; font-size: 14px; }
+.hv-sub { color: #8a8375; font-size: 9.5px; }
+.hv-val { margin-top: 3px; font-weight: 600; }
+.hv-basis { color: #6d675c; font-size: 9px; }
+.foot { margin-top: 24px; padding-top: 8px; border-top: 0.5px solid #e5dfd2; color: #a09a8c; font-size: 8.5px; display: flex; justify-content: space-between; }
+</style></head><body>
+<div class="wordmark">WineSnob</div>
+<div class="kicker">Statement of insurable inventory</div>
+<h1>${e(input.accountName)}</h1>
+<div class="basis">Prepared ${today()} for ${e(input.accountEmail)}</div>
+
+<div class="cover">
+  <div class="block">
+    <h3>The cellar</h3>
+    <div class="line"><span>Current value</span><span class="hero">${e(eur(st.current))}</span></div>
+    <div class="line"><span>Positions</span><span>${st.totalPositions}</span></div>
+    <div class="line"><span>Bottles</span><span>${bottleCount}</span></div>
+    <div class="line"><span>Market-priced</span><span>${st.pricedPositions} of ${st.totalPositions}${st.latestValuation ? ` · latest ${e(dmy(st.latestValuation))}` : ''}</span></div>
+  </div>
+  <div class="block">
+    <h3>The policy</h3>
+    <div class="line"><span>Insurer</span><span>${e(input.policy?.insurer || 'not recorded')}</span></div>
+    <div class="line"><span>Declared sum</span><span>${st.declared != null ? e(eur(st.declared)) : 'not recorded'}</span></div>
+    ${st.gap != null ? `<div class="line"><span>${st.gap > 0 ? 'Underinsured by' : 'Headroom'}</span><span class="${st.gap > 0 ? 'gap-warn' : 'gap-ok'}">${e(eur(Math.abs(st.gap)))}</span></div>` : ''}
+    <div class="line"><span>Per-item limit</span><span>${input.policy?.itemLimit ? e(eur(input.policy.itemLimit)) : 'not recorded'}</span></div>
+    <div class="line"><span>Renews</span><span>${e(input.policy?.renewal || 'not recorded')}</span></div>
+  </div>
+</div>
+
+${input.attestation ? `<div class="attest">Cited sealed record ${e(attestationNumber(input.attestation.seq))} of ${e(dmy(input.attestation.createdAt))}, ${input.attestation.positions} positions, ${e(eur(input.attestation.totalValue))}.<br/>SHA-256 <code>${e(input.attestation.sha256)}</code></div>` : ''}
+
+<div class="basis-note">${e(BASIS_TEXT)}</div>
+
+<h2>Schedule</h2>
+<table>
+  <thead><tr><th>Cellar</th><th>Wine</th><th>Vintage</th><th>Format</th><th class="num">Bottles</th><th class="num">Acquired</th><th class="num">Per bottle</th><th class="num">Position</th><th>Basis</th></tr></thead>
+  <tbody>${scheduleRows}</tbody>
+</table>
+
+${
+  st.overLimit.length && input.policy?.itemLimit
+    ? `<h2>High-value items</h2>
+<div class="basis" style="margin-bottom:10px">Each item exceeds the per-item limit of ${e(eur(input.policy.itemLimit))} and is typically scheduled individually with the insurer.</div>
+${annex}`
+    : ''
+}
+
+<div class="foot"><span>Prepared with WineSnob</span><span>${today()}</span></div>
+</body></html>`
+}
+
+/** Open the statement in a hidden frame and hand it to the browser's print
+ * dialog, where it saves as a clean PDF. */
+export function printInsuranceStatement(input: InsuranceInput) {
+  const html = insuranceStatementHTML(input)
+  const frame = document.createElement('iframe')
+  frame.style.position = 'fixed'
+  frame.style.right = '0'
+  frame.style.bottom = '0'
+  frame.style.width = '0'
+  frame.style.height = '0'
+  frame.style.border = '0'
+  document.body.appendChild(frame)
+  const doc = frame.contentDocument!
+  doc.open()
+  doc.write(html)
+  doc.close()
+  const fire = () => {
+    try {
+      frame.contentWindow?.focus()
+      frame.contentWindow?.print()
+    } finally {
+      // Give the print dialog time to take its snapshot before removal.
+      setTimeout(() => frame.remove(), 60000)
+    }
+  }
+  // Let fonts and photographs settle so the first page prints complete.
+  const imgs = Array.from(doc.images)
+  void Promise.allSettled(imgs.map((i) => (i.decode ? i.decode() : Promise.resolve()))).then(() =>
+    setTimeout(fire, 350),
+  )
 }
 
 export async function exportWorkbook(input: ExportInput) {

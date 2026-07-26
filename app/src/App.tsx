@@ -10,6 +10,7 @@ import { Toaster } from '@/components/Toaster'
 import { Modals } from '@/modals/Modals'
 import { Sommelier } from '@/components/Sommelier'
 import { Admin } from '@/screens/Admin'
+import { Insurance } from '@/screens/Insurance'
 import { ResetPassword } from '@/screens/ResetPassword'
 import { Onboarding } from '@/screens/Onboarding'
 import { Cellar } from '@/screens/Cellar'
@@ -67,6 +68,7 @@ export function App() {
   const userId = useStore((s) => s.userId)
   const screen = useStore((s) => s.screen)
   const adminOpen = useStore((s) => s.adminOpen)
+  const insuranceOpen = useStore((s) => s.insuranceOpen)
   const pwRecovery = useStore((s) => s.pwRecovery)
 
   // The front-door decision is made ONCE per visit, when the session first
@@ -146,6 +148,7 @@ export function App() {
       </AppFrame>
       <Modals />
       <Sommelier />
+      {insuranceOpen && <Insurance />}
       {adminOpen && <Admin />}
       {pwRecovery && <ResetPassword />}
       <Toaster />

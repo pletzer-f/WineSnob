@@ -17,6 +17,7 @@ export interface AdminUser {
   aiCost30d: number
   aiCalls30d: number
   isAdmin: boolean
+  insurance: boolean
 }
 
 export interface AdminOverview {
@@ -124,8 +125,8 @@ export function generatePassword(length = 14): string {
 // ---- offline demo: a small mock console with a working billing ledger ----
 
 const demoUsers: AdminUser[] = [
-  { id: 'demo-owner', email: 'owner@winesnob.app', name: 'The Owner', createdAt: '2026-06-02', lastSignIn: '2026-07-25', confirmed: true, onboarded: true, currency: 'EUR', bottles: 82, cellarValue: 34738, drinks: 7, wishes: 5, aiCost30d: 31.79, aiCalls30d: 101, isAdmin: true },
-  { id: 'demo-guest', email: 'guest@winesnob.app', name: 'A Guest', createdAt: '2026-07-01', lastSignIn: '2026-07-20', confirmed: true, onboarded: true, currency: 'EUR', bottles: 24, cellarValue: 6120, drinks: 2, wishes: 1, aiCost30d: 4.12, aiCalls30d: 18, isAdmin: false },
+  { id: 'demo-owner', email: 'owner@winesnob.app', name: 'The Owner', createdAt: '2026-06-02', lastSignIn: '2026-07-25', confirmed: true, onboarded: true, currency: 'EUR', bottles: 82, cellarValue: 34738, drinks: 7, wishes: 5, aiCost30d: 31.79, aiCalls30d: 101, isAdmin: true, insurance: true },
+  { id: 'demo-guest', email: 'guest@winesnob.app', name: 'A Guest', createdAt: '2026-07-01', lastSignIn: '2026-07-20', confirmed: true, onboarded: true, currency: 'EUR', bottles: 24, cellarValue: 6120, drinks: 2, wishes: 1, aiCost30d: 4.12, aiCalls30d: 18, isAdmin: false, insurance: false },
 ]
 
 const demoUnbilled = new Map<string, UsageLine[]>([
@@ -213,6 +214,11 @@ function demoAdmin(action: string, params: Record<string, unknown>): unknown {
       entries.push({ delta_usd: amt, kind: amt > 0 ? 'grant' : 'adjustment', note: (params.note as string) || null, created_at: new Date().toISOString() })
       demoCredits.set(userId, entries)
       return { ok: true, balance: Math.round(entries.reduce((a, e) => a + e.delta_usd, 0) * 100) / 100 }
+    }
+    case 'setEntitlement': {
+      const u = demoUsers.find((x) => x.id === userId)
+      if (u) u.insurance = !!params.value
+      return { ok: true, insurance: !!params.value }
     }
     default:
       throw new Error('This action needs the live backend.')
