@@ -22,6 +22,22 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* iOS scroll containment. The document itself never scrolls (the app root is
+   exactly one viewport tall), so a flick that reaches the edge of any inner
+   scroller chains OUT to the document, which can only rubber-band; in the
+   installed app that bounce can wedge mid-gesture and the page reads as
+   frozen, unable to scroll back up. Kill chaining at the root and contain
+   every scroller that sits above the app (overlays, sheets, the landing). */
+html,
+body {
+  overscroll-behavior: none;
+}
+.ws-app-main,
+.ws-som-scroll,
+.ws-land {
+  overscroll-behavior: contain;
+}
+
 /* App frame fills the dynamic viewport (iOS Safari's collapsing URL bar). */
 .ws-app-root {
   height: 100vh;

@@ -80,6 +80,7 @@ const overlay: React.CSSProperties = {
   zIndex: 320,
   background: 'var(--ws-bg)',
   overflowY: 'auto',
+  overscrollBehavior: 'contain',
   display: 'flex',
   justifyContent: 'center',
   fontFamily: 'var(--ws-font-ui)',

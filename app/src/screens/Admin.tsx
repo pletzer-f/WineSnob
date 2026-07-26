@@ -684,6 +684,9 @@ const overlay: React.CSSProperties = {
   zIndex: 300,
   background: 'var(--ws-bg)',
   overflowY: 'auto',
+  // A flick past the edge must not chain to the page behind: on iOS that
+  // rubber-band can wedge the installed app mid-bounce.
+  overscrollBehavior: 'contain',
   display: 'flex',
   justifyContent: 'center',
   fontFamily: 'var(--ws-font-ui)',
