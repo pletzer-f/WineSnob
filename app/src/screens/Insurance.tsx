@@ -4,13 +4,20 @@ import { useStore } from '@/store/store'
 import { hasSupabase } from '@/lib/supabase'
 import {
   attestationNumber,
+  fetchAttestationDetail,
   fetchInsuranceEntitled,
   insuranceStatus,
   listAttestations,
   sealInventory,
   type Attestation,
 } from '@/data/insurance'
-import { exportInsuranceWorkbook, printInsuranceStatement, type InsuranceInput } from '@/data/exporter'
+import {
+  exportInsuranceWorkbook,
+  exportSealedWorkbook,
+  printInsuranceStatement,
+  printSealedStatement,
+  type InsuranceInput,
+} from '@/data/exporter'
 import { unitValueNow } from '@/domain/valuation'
 
 const eur = (n: number) => `€${Math.round(n).toLocaleString('en-US')}`
@@ -103,6 +110,27 @@ export function Insurance() {
       s.flash('Export failed, please try again')
     } finally {
       setExporting(false)
+    }
+  }
+
+  // Retrospective downloads: each sealed record rebuilds its documents from
+  // the frozen snapshot alone, never from the living cellar.
+  const [docBusy, setDocBusy] = useState<string | null>(null)
+  const sealedDoc = async (a: Attestation, kind: 'statement' | 'excel') => {
+    setDocBusy(a.id + kind)
+    try {
+      const detail = await fetchAttestationDetail(a.id)
+      if (!detail) throw new Error('The record could not be loaded.')
+      const inp = { detail, accountName: s.account.name, accountEmail: s.account.email }
+      if (kind === 'statement') printSealedStatement(inp)
+      else {
+        await exportSealedWorkbook(inp)
+        s.flash(`${attestationNumber(a.seq)} exported`)
+      }
+    } catch (e) {
+      s.flash(e instanceof Error ? e.message : 'Could not load the record')
+    } finally {
+      setDocBusy(null)
     }
   }
 
@@ -285,6 +313,24 @@ export function Insurance() {
                     <div style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 10, color: 'var(--ws-muted)', marginTop: 3, overflowWrap: 'anywhere' }}>
                       sha256 {a.sha256}
                     </div>
+                    <div style={{ display: 'flex', gap: 'var(--ws-space-4)', marginTop: 5 }}>
+                      <button
+                        className="ws-linkish ws-linkish--accent"
+                        style={{ ...attLink, color: 'var(--ws-bordeaux)' }}
+                        onClick={() => void sealedDoc(a, 'statement')}
+                        disabled={docBusy != null}
+                      >
+                        {docBusy === a.id + 'statement' ? 'Preparing…' : 'Statement'}
+                      </button>
+                      <button
+                        className="ws-linkish"
+                        style={attLink}
+                        onClick={() => void sealedDoc(a, 'excel')}
+                        disabled={docBusy != null}
+                      >
+                        {docBusy === a.id + 'excel' ? 'Preparing…' : 'Excel'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -396,6 +442,7 @@ const confirmCard: React.CSSProperties = {
   flexDirection: 'column',
   gap: 10,
 }
+const attLink: React.CSSProperties = { background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 13, padding: '2px 0' }
 const attRow: React.CSSProperties = {
   display: 'flex',
   gap: 12,

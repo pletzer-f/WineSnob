@@ -6,7 +6,7 @@
 import type { Bottle, Cellar, Drink, Policy, Wish } from '@/domain/types'
 import { bottleValue, hasMarketValue, unitValueNow } from '@/domain/valuation'
 import { costBasis, totalReturn } from '@/domain/portfolio'
-import { attestationNumber, insuranceStatus, type Attestation } from '@/data/insurance'
+import { attestationNumber, insuranceStatus, type Attestation, type AttestationDetail } from '@/data/insurance'
 import { fmtDef } from '@/domain/formats'
 
 export interface ExportInput {
@@ -290,6 +290,46 @@ export async function exportInsuranceWorkbook(input: InsuranceInput) {
 const escapeHtml = (s: unknown) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 
+const STATEMENT_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=Figtree:wght@400;500;600&display=swap');
+@page { size: A4; margin: 16mm 14mm; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Figtree', system-ui, sans-serif; color: #26221c; font-size: 10.5px; line-height: 1.5; }
+h1, h2, .wordmark { font-family: 'Spectral', Georgia, serif; font-weight: 500; }
+.wordmark { font-size: 13px; letter-spacing: 0.34em; text-transform: uppercase; color: #5d1a28; }
+h1 { font-size: 26px; margin: 6px 0 2px; }
+.kicker { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #8a8375; }
+.cover { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 28px; margin: 22px 0 6px; }
+.block h3 { font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: #8a8375; font-weight: 600; margin-bottom: 6px; }
+.block .line { display: flex; justify-content: space-between; gap: 12px; padding: 3.5px 0; border-bottom: 0.5px solid #e5dfd2; }
+.block .line span:last-child { font-weight: 600; text-align: right; }
+.hero { font-family: 'Spectral', Georgia, serif; font-size: 30px; }
+.gap-warn { color: #5d1a28; font-weight: 600; }
+.gap-ok { color: #274d3d; font-weight: 600; }
+.basis { color: #6d675c; }
+.basis-note { margin: 14px 0 4px; padding: 10px 12px; border: 0.5px solid #e5dfd2; background: #faf7f0; color: #57524a; font-size: 9.5px; }
+.attest { margin-top: 8px; font-size: 9.5px; color: #57524a; }
+.attest code { font-family: ui-monospace, Menlo, monospace; font-size: 8px; word-break: break-all; }
+h2 { font-size: 17px; margin: 26px 0 8px; page-break-after: avoid; }
+table { width: 100%; border-collapse: collapse; }
+th { font-size: 8.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #8a8375; text-align: left; padding: 5px 6px; border-bottom: 0.5px solid #26221c; }
+td { padding: 4.5px 6px; border-bottom: 0.5px solid #e5dfd2; vertical-align: top; }
+tr { page-break-inside: avoid; }
+td.num, th.num { text-align: right; white-space: nowrap; }
+td.strong { font-weight: 600; }
+td.wine { font-weight: 500; }
+td.wine .sub { display: block; font-weight: 400; color: #8a8375; font-size: 9px; }
+td.basis { color: #6d675c; white-space: nowrap; }
+.hv { display: flex; gap: 12px; border: 0.5px solid #e5dfd2; padding: 10px; margin-bottom: 10px; page-break-inside: avoid; align-items: center; }
+.hv img { width: 52px; height: 68px; object-fit: cover; border: 0.5px solid #e5dfd2; }
+.hv-noimg { width: 52px; height: 68px; border: 0.5px dashed #cfc8b8; color: #a09a8c; font-size: 7.5px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 4px; }
+.hv-name { font-family: 'Spectral', Georgia, serif; font-size: 14px; }
+.hv-sub { color: #8a8375; font-size: 9.5px; }
+.hv-val { margin-top: 3px; font-weight: 600; }
+.hv-basis { color: #6d675c; font-size: 9px; }
+.foot { margin-top: 24px; padding-top: 8px; border-top: 0.5px solid #e5dfd2; color: #a09a8c; font-size: 8.5px; display: flex; justify-content: space-between; }
+`
+
 export function insuranceStatementHTML(input: InsuranceInput): string {
   const st = insuranceStatus(input.bottles, input.policy)
   const cellarName = new Map(input.cellars.map((c) => [c.id, c.name]))
@@ -330,45 +370,7 @@ export function insuranceStatementHTML(input: InsuranceInput): string {
     .join('')
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>WineSnob insurance statement</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=Figtree:wght@400;500;600&display=swap');
-@page { size: A4; margin: 16mm 14mm; }
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Figtree', system-ui, sans-serif; color: #26221c; font-size: 10.5px; line-height: 1.5; }
-h1, h2, .wordmark { font-family: 'Spectral', Georgia, serif; font-weight: 500; }
-.wordmark { font-size: 13px; letter-spacing: 0.34em; text-transform: uppercase; color: #5d1a28; }
-h1 { font-size: 26px; margin: 6px 0 2px; }
-.kicker { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #8a8375; }
-.cover { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 28px; margin: 22px 0 6px; }
-.block h3 { font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: #8a8375; font-weight: 600; margin-bottom: 6px; }
-.block .line { display: flex; justify-content: space-between; gap: 12px; padding: 3.5px 0; border-bottom: 0.5px solid #e5dfd2; }
-.block .line span:last-child { font-weight: 600; text-align: right; }
-.hero { font-family: 'Spectral', Georgia, serif; font-size: 30px; }
-.gap-warn { color: #5d1a28; font-weight: 600; }
-.gap-ok { color: #274d3d; font-weight: 600; }
-.basis { color: #6d675c; }
-.basis-note { margin: 14px 0 4px; padding: 10px 12px; border: 0.5px solid #e5dfd2; background: #faf7f0; color: #57524a; font-size: 9.5px; }
-.attest { margin-top: 8px; font-size: 9.5px; color: #57524a; }
-.attest code { font-family: ui-monospace, Menlo, monospace; font-size: 8px; word-break: break-all; }
-h2 { font-size: 17px; margin: 26px 0 8px; page-break-after: avoid; }
-table { width: 100%; border-collapse: collapse; }
-th { font-size: 8.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #8a8375; text-align: left; padding: 5px 6px; border-bottom: 0.5px solid #26221c; }
-td { padding: 4.5px 6px; border-bottom: 0.5px solid #e5dfd2; vertical-align: top; }
-tr { page-break-inside: avoid; }
-td.num, th.num { text-align: right; white-space: nowrap; }
-td.strong { font-weight: 600; }
-td.wine { font-weight: 500; }
-td.wine .sub { display: block; font-weight: 400; color: #8a8375; font-size: 9px; }
-td.basis { color: #6d675c; white-space: nowrap; }
-.hv { display: flex; gap: 12px; border: 0.5px solid #e5dfd2; padding: 10px; margin-bottom: 10px; page-break-inside: avoid; align-items: center; }
-.hv img { width: 52px; height: 68px; object-fit: cover; border: 0.5px solid #e5dfd2; }
-.hv-noimg { width: 52px; height: 68px; border: 0.5px dashed #cfc8b8; color: #a09a8c; font-size: 7.5px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 4px; }
-.hv-name { font-family: 'Spectral', Georgia, serif; font-size: 14px; }
-.hv-sub { color: #8a8375; font-size: 9.5px; }
-.hv-val { margin-top: 3px; font-weight: 600; }
-.hv-basis { color: #6d675c; font-size: 9px; }
-.foot { margin-top: 24px; padding-top: 8px; border-top: 0.5px solid #e5dfd2; color: #a09a8c; font-size: 8.5px; display: flex; justify-content: space-between; }
-</style></head><body>
+<style>${STATEMENT_CSS}</style></head><body>
 <div class="wordmark">WineSnob</div>
 <div class="kicker">Statement of insurable inventory</div>
 <h1>${e(input.accountName)}</h1>
@@ -414,10 +416,150 @@ ${annex}`
 </body></html>`
 }
 
+// ---- retrospective documents from a sealed record ----
+// Built STRICTLY from the frozen snapshot: no live cellar data, and no
+// photographs (pixels were never part of the hash, so they do not belong
+// in a document that claims to reproduce the record exactly as sealed).
+
+export interface SealedDocInput {
+  detail: AttestationDetail
+  accountName: string
+  accountEmail: string
+}
+
+const SEALED_TEXT = (num: string, dayStr: string) =>
+  `This document reproduces sealed record ${num} exactly as recorded on ${dayStr}. The record is stored append-only; the database rejects any change or deletion, and its SHA-256 fingerprint above can be recomputed from the stored snapshot at any time. ${BASIS_TEXT}`
+
+export function sealedStatementHTML(inp: SealedDocInput): string {
+  const { detail } = inp
+  const e = escapeHtml
+  const num = attestationNumber(detail.seq)
+  const sealedDay = dmy(detail.createdAt)
+  const rows = detail.schedule
+    .map(
+      (p) => `<tr>
+        <td>${e(p.cellar)}</td>
+        <td class="wine">${e(p.name)}<span class="sub">${e(p.producer)}</span></td>
+        <td>${e(p.vintage)}</td>
+        <td>${e(fmtDef(p.format).label)}</td>
+        <td class="num">${p.quantity}</td>
+        <td class="num">${p.paid != null && p.paid > 0 ? e(eur(p.paid)) : '–'}</td>
+        <td class="num">${e(eur(p.itemValue))}</td>
+        <td class="num strong">${e(eur(p.positionValue))}</td>
+        <td class="basis">${p.basis === 'market' ? `market · ${e(dmy(p.marketAsOf))}` : 'recorded'}</td>
+      </tr>`,
+    )
+    .join('')
+  const pol = detail.policy
+  return `<!doctype html><html><head><meta charset="utf-8"><title>WineSnob sealed record ${e(num)}</title>
+<style>${STATEMENT_CSS}</style></head><body>
+<div class="wordmark">WineSnob</div>
+<div class="kicker">Sealed inventory record · ${e(num)}</div>
+<h1>${e(inp.accountName)}</h1>
+<div class="basis">Sealed ${e(sealedDay)} · prepared for ${e(inp.accountEmail)}${detail.note ? ` · ${e(detail.note)}` : ''}</div>
+
+<div class="cover">
+  <div class="block">
+    <h3>The record</h3>
+    <div class="line"><span>Value at seal</span><span class="hero">${e(eur(detail.totalValue))}</span></div>
+    <div class="line"><span>Positions</span><span>${detail.schedule.length}</span></div>
+    <div class="line"><span>Bottles</span><span>${detail.bottles}</span></div>
+    <div class="line"><span>Sealed</span><span>${e(sealedDay)}</span></div>
+  </div>
+  <div class="block">
+    <h3>The policy at seal time</h3>
+    <div class="line"><span>Insurer</span><span>${e(pol?.insurer || 'not recorded')}</span></div>
+    <div class="line"><span>Declared sum</span><span>${pol?.declared != null ? e(eur(pol.declared)) : 'not recorded'}</span></div>
+    <div class="line"><span>Per-item limit</span><span>${pol?.itemLimit != null ? e(eur(pol.itemLimit)) : 'not recorded'}</span></div>
+    <div class="line"><span>Renews</span><span>${e(pol?.renewal || 'not recorded')}</span></div>
+  </div>
+</div>
+
+<div class="attest">SHA-256 <code>${e(detail.sha256)}</code></div>
+<div class="basis-note">${e(SEALED_TEXT(num, sealedDay))}</div>
+
+<h2>Schedule as sealed</h2>
+<table>
+  <thead><tr><th>Cellar</th><th>Wine</th><th>Vintage</th><th>Format</th><th class="num">Bottles</th><th class="num">Acquired</th><th class="num">Per bottle</th><th class="num">Position</th><th>Basis</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+
+<div class="foot"><span>Prepared with WineSnob · sealed record ${e(num)}</span><span>${today()}</span></div>
+</body></html>`
+}
+
+export function printSealedStatement(inp: SealedDocInput) {
+  printHTML(sealedStatementHTML(inp))
+}
+
+export async function exportSealedWorkbook(inp: SealedDocInput) {
+  const { detail } = inp
+  const num = attestationNumber(detail.seq)
+  const pol = detail.policy
+  const cover: ExportSheet = {
+    name: 'Sealed record',
+    rows: [
+      ['WineSnob sealed inventory record', ''],
+      ['Record', num],
+      ['Sealed', dmy(detail.createdAt)],
+      ['Policyholder', `${inp.accountName} (${inp.accountEmail})`],
+      ...(detail.note ? [['Note', detail.note] as Cell[]] : []),
+      ['', ''],
+      ['Positions', detail.schedule.length],
+      ['Bottles', detail.bottles],
+      ['Value at seal', eur(detail.totalValue)],
+      ['', ''],
+      ['Insurer at seal time', pol?.insurer || 'not recorded'],
+      ['Declared sum', pol?.declared != null ? eur(pol.declared) : 'not recorded'],
+      ['Per-item limit', pol?.itemLimit != null ? eur(pol.itemLimit) : 'not recorded'],
+      ['', ''],
+      ['SHA-256', detail.sha256],
+      ['About this record', SEALED_TEXT(num, dmy(detail.createdAt))],
+    ],
+    money: [],
+    widths: [30, 70],
+  }
+  const schedule: ExportSheet = {
+    name: 'Schedule as sealed',
+    rows: [
+      ['Cellar', 'Wine', 'Producer', 'Vintage', 'Format', 'Bottles', 'Region', 'Country',
+        'Acquired price / bottle', 'Value / bottle', 'Position value', 'Basis', 'Priced by', 'Priced on'],
+      ...detail.schedule.map((p): Cell[] => [
+        p.cellar, p.name, p.producer, p.vintage, fmtDef(p.format).label, p.quantity, p.region, p.country,
+        p.paid != null && p.paid > 0 ? p.paid : null, p.itemValue, p.positionValue,
+        p.basis, p.marketSource ?? '', dmy(p.marketAsOf),
+      ]),
+    ],
+    money: [8, 9, 10],
+    widths: [12, 30, 26, 8, 12, 8, 22, 10, 15, 13, 14, 10, 16, 11],
+  }
+  const XLSX = await import('xlsx')
+  const wb = XLSX.utils.book_new()
+  for (const sheet of [cover, schedule]) {
+    const ws = XLSX.utils.aoa_to_sheet(sheet.rows)
+    ws['!cols'] = sheet.widths.map((wch) => ({ wch }))
+    for (const c of sheet.money) {
+      for (let r = 1; r < sheet.rows.length; r++) {
+        const cell = ws[XLSX.utils.encode_cell({ r, c })]
+        if (cell && typeof cell.v === 'number') cell.z = '#,##0.00 "€"'
+      }
+    }
+    XLSX.utils.book_append_sheet(wb, ws, sheet.name)
+  }
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer
+  download(
+    new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+    `winesnob-sealed-${num}.xlsx`
+  )
+}
+
 /** Open the statement in a hidden frame and hand it to the browser's print
  * dialog, where it saves as a clean PDF. */
 export function printInsuranceStatement(input: InsuranceInput) {
-  const html = insuranceStatementHTML(input)
+  printHTML(insuranceStatementHTML(input))
+}
+
+function printHTML(html: string) {
   const frame = document.createElement('iframe')
   frame.style.position = 'fixed'
   frame.style.right = '0'

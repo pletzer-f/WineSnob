@@ -48,6 +48,83 @@ const attFromRow = (r: any): Attestation => ({
   note: r.note ?? null,
 })
 
+/** One frozen position inside a sealed record, exactly as recorded. */
+export interface FrozenPosition {
+  cellar: string
+  name: string
+  producer: string
+  vintage: string
+  format: string
+  quantity: number
+  region: string
+  country: string
+  paid: number | null
+  itemValue: number
+  positionValue: number
+  basis: 'market' | 'recorded'
+  marketSource: string | null
+  marketAsOf: string | null
+}
+
+export interface FrozenPolicy {
+  insurer: string | null
+  declared: number | null
+  renewal: string | null
+  itemLimit: number | null
+}
+
+export interface AttestationDetail extends Attestation {
+  schedule: FrozenPosition[]
+  policy: FrozenPolicy | null
+}
+
+const frozenFromSnapshot = (rows: any[]): FrozenPosition[] =>
+  (rows || []).map((p) => ({
+    cellar: String(p.cellar ?? ''),
+    name: String(p.name ?? ''),
+    producer: String(p.producer ?? ''),
+    vintage: String(p.vintage ?? ''),
+    format: String(p.format ?? 'standard'),
+    quantity: Number(p.quantity ?? 0),
+    region: String(p.region ?? ''),
+    country: String(p.country ?? ''),
+    paid: p.paid == null ? null : Number(p.paid),
+    itemValue: Number(p.item_value ?? 0),
+    positionValue: Number(p.position_value ?? 0),
+    basis: p.basis === 'market' ? 'market' : 'recorded',
+    marketSource: p.market_source ?? null,
+    marketAsOf: p.market_as_of ?? null,
+  }))
+
+/** The full frozen record behind one attestation: every position and the
+ * policy facts exactly as they stood at seal time. */
+export async function fetchAttestationDetail(id: string): Promise<AttestationDetail | null> {
+  if (!hasSupabase) {
+    const a = demoAttestations.find((x) => x.id === id)
+    return a ? { ...a, schedule: demoFrozenPositions(), policy: { insurer: 'Uniqa Art & Passion', declared: 20000, renewal: '2026-08-20', itemLimit: 600 } } : null
+  }
+  const { data, error } = await db
+    .from('inventory_attestations')
+    .select('id,seq,created_at,positions,bottles,total_value,sha256,note,snapshot,policy')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) return null
+  const pol = (data as any).policy
+  return {
+    ...attFromRow(data),
+    schedule: frozenFromSnapshot((data as any).snapshot as any[]),
+    policy: pol
+      ? {
+          insurer: pol.insurer ?? null,
+          declared: pol.declared == null ? null : Number(pol.declared),
+          renewal: pol.renewal ?? null,
+          itemLimit: pol.item_limit == null ? null : Number(pol.item_limit),
+        }
+      : null,
+  }
+}
+
 export async function listAttestations(): Promise<Attestation[]> {
   if (!hasSupabase) return demoAttestations.slice()
   const { data, error } = await db
@@ -78,6 +155,16 @@ export async function sealInventory(note?: string): Promise<Attestation> {
   const { data, error } = await db.rpc('create_inventory_attestation', { p_note: note || null })
   if (error) throw new Error(error.message)
   return attFromRow(data)
+}
+
+/** A small frozen schedule so retrospective downloads work offline. */
+function demoFrozenPositions(): FrozenPosition[] {
+  return [
+    { cellar: 'Main Cellar', name: 'Château Margaux', producer: 'Château Margaux', vintage: '2015', format: 'standard', quantity: 2, region: 'Margaux, Bordeaux', country: 'France', paid: 550, itemValue: 850, positionValue: 1700, basis: 'recorded', marketSource: null, marketAsOf: null },
+    { cellar: 'Main Cellar', name: 'Barolo Monfortino Riserva', producer: 'Giacomo Conterno', vintage: '2017', format: 'standard', quantity: 3, region: 'Piedmont', country: 'Italy', paid: 980, itemValue: 1150, positionValue: 3450, basis: 'recorded', marketSource: null, marketAsOf: null },
+    { cellar: 'Main Cellar', name: 'Cristal', producer: 'Louis Roederer', vintage: '2014', format: 'standard', quantity: 6, region: 'Champagne', country: 'France', paid: 210, itemValue: 290, positionValue: 1740, basis: 'recorded', marketSource: null, marketAsOf: null },
+    { cellar: 'Vienna apartment', name: 'Grüner Veltliner Smaragd', producer: 'F.X. Pichler', vintage: '2021', format: 'standard', quantity: 12, region: 'Wachau', country: 'Austria', paid: 38, itemValue: 52, positionValue: 624, basis: 'recorded', marketSource: null, marketAsOf: null },
+  ]
 }
 
 const demoAttestations: Attestation[] = [
