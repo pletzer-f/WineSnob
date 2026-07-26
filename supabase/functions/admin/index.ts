@@ -62,8 +62,15 @@ function monthAgoISO(): string {
   return d.toISOString()
 }
 
+/** The account's commercial rate: internal bills at cost, others at markup
+ * (1.5 by default until the admin sets a rate). */
+function rateOf(cfg: { markup?: number; internal?: boolean } | undefined): { markup: number; internal: boolean } {
+  const internal = !!cfg?.internal
+  return { markup: internal ? 1 : Number(cfg?.markup ?? 1.5), internal }
+}
+
 async function listUsers() {
-  const [authList, profiles, bottles, drinks, wishes, usage, admins, ents] = await Promise.all([
+  const [authList, profiles, bottles, drinks, wishes, usage, admins, ents, cfgs, unbilled] = await Promise.all([
     authAdmin('users?page=1&per_page=200'),
     rest('profiles?select=user_id,name,onboarded,currency'),
     rest('bottles?select=user_id,quantity,unit,market_unit'),
@@ -72,11 +79,21 @@ async function listUsers() {
     rest(`ai_usage?select=user_id,cost_usd,created_at&created_at=gte.${monthAgoISO()}`),
     rest('admin_users?select=user_id'),
     rest('entitlements?select=user_id,insurance'),
+    rest('billing_config?select=user_id,markup,internal'),
+    rest('ai_usage?select=user_id,cost_usd&statement_id=is.null&user_id=not.is.null'),
   ])
   const users = (authList?.users || authList || []) as any[]
   const pmap = new Map((profiles as any[]).map((p) => [p.user_id, p]))
   const adminSet = new Set((admins as any[]).map((a) => a.user_id))
   const insuranceSet = new Set((ents as any[]).filter((e) => e.insurance).map((e) => e.user_id))
+  const cfgMap = new Map((cfgs as any[]).map((c) => [c.user_id, c]))
+  const outMap = new Map<string, { cost: number; calls: number }>()
+  for (const r of (unbilled as any[]) || []) {
+    const o = outMap.get(r.user_id) || { cost: 0, calls: 0 }
+    o.cost += Number(r.cost_usd || 0)
+    o.calls += 1
+    outMap.set(r.user_id, o)
+  }
 
   const agg = <T>(rows: any[], fold: (acc: T, r: any) => T, zero: T) => {
     const m = new Map<string, T>()
@@ -108,6 +125,11 @@ async function listUsers() {
         aiCalls30d: uAgg.get(u.id)?.calls || 0,
         isAdmin: adminSet.has(u.id),
         insurance: insuranceSet.has(u.id),
+        markup: rateOf(cfgMap.get(u.id)).markup,
+        internal: rateOf(cfgMap.get(u.id)).internal,
+        unbilledCost: Math.round((outMap.get(u.id)?.cost || 0) * 10000) / 10000,
+        unbilledBilled: Math.round((outMap.get(u.id)?.cost || 0) * rateOf(cfgMap.get(u.id)).markup * 100) / 100,
+        unbilledCalls: outMap.get(u.id)?.calls || 0,
       }
     })
     .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))
@@ -132,12 +154,36 @@ Deno.serve(async (req: Request) => {
         return json({ users: await listUsers() })
       }
       case 'overview': {
-        const [users, totals] = await Promise.all([listUsers(), rest(`ai_usage?select=cost_usd&created_at=gte.${monthAgoISO()}`)])
-        const spend30d = (totals as any[]).reduce((a, r) => a + Number(r.cost_usd || 0), 0)
+        // The commercial picture: your live Anthropic meter for the period,
+        // revenue already locked into statements, and revenue you could bill
+        // today. Internal accounts never count as revenue.
+        const [users, period, stmts] = await Promise.all([
+          listUsers(),
+          rest(`ai_usage?select=cost_usd,input_tokens,output_tokens,searches&created_at=gte.${monthAgoISO()}`),
+          rest(`billing_statements?select=user_id,billed_usd,total_usd,created_at&created_at=gte.${monthAgoISO()}`),
+        ])
+        const anthropic = ((period as any[]) || []).reduce(
+          (a, r) => ({
+            cost: a.cost + Number(r.cost_usd || 0),
+            inputTokens: a.inputTokens + (r.input_tokens || 0),
+            outputTokens: a.outputTokens + (r.output_tokens || 0),
+            searches: a.searches + (r.searches || 0),
+            calls: a.calls + 1,
+          }),
+          { cost: 0, inputTokens: 0, outputTokens: 0, searches: 0, calls: 0 },
+        )
+        const internalIds = new Set(users.filter((u) => u.internal).map((u) => u.id))
+        const revenueBilled30d = ((stmts as any[]) || [])
+          .filter((s) => !internalIds.has(s.user_id))
+          .reduce((a, s) => a + Number(s.billed_usd ?? s.total_usd ?? 0), 0)
+        const revenueOutstanding = users.filter((u) => !u.internal).reduce((a, u) => a + u.unbilledBilled, 0)
         return json({
           users: users.length,
           bottles: users.reduce((a, u) => a + u.bottles, 0),
-          aiSpend30d: Math.round(spend30d * 100) / 100,
+          aiSpend30d: Math.round(anthropic.cost * 100) / 100,
+          anthropic: { ...anthropic, cost: Math.round(anthropic.cost * 10000) / 10000 },
+          revenueBilled30d: Math.round(revenueBilled30d * 100) / 100,
+          revenueOutstanding: Math.round(revenueOutstanding * 100) / 100,
         })
       }
       case 'createUser': {
@@ -179,11 +225,15 @@ Deno.serve(async (req: Request) => {
         // recent activity, and the last statement for context.
         const { userId } = body
         if (!userId) return json({ error: 'User is required.' }, 400)
-        const [unbilled, recent, lastStmt] = await Promise.all([
+        const [unbilled, recent, lastStmt, cfg, ledger] = await Promise.all([
           rest(`ai_usage?select=fn,input_tokens,output_tokens,searches,cost_usd,created_at&user_id=eq.${userId}&statement_id=is.null&order=created_at.asc`),
           rest(`ai_usage?select=fn,cost_usd,searches,created_at,statement_id&user_id=eq.${userId}&order=created_at.desc&limit=14`),
-          rest(`billing_statements?select=id,seq,period_start,period_end,total_usd,created_at&user_id=eq.${userId}&order=created_at.desc&limit=1`),
+          rest(`billing_statements?select=id,seq,period_start,period_end,total_usd,billed_usd,markup,created_at&user_id=eq.${userId}&order=created_at.desc&limit=1`),
+          rest(`billing_config?select=markup,internal&user_id=eq.${userId}`),
+          rest(`credit_ledger?select=delta_usd&user_id=eq.${userId}`),
         ])
+        const rate = rateOf((cfg as any[])?.[0])
+        const balanceOnFile = ((ledger as any[]) || []).reduce((a, r) => a + Number(r.delta_usd || 0), 0)
         const byFn = new Map<string, { fn: string; calls: number; input_tokens: number; output_tokens: number; searches: number; usd: number }>()
         let total = 0
         for (const r of (unbilled as any[]) || []) {
@@ -197,16 +247,24 @@ Deno.serve(async (req: Request) => {
           total += Number(r.cost_usd || 0)
         }
         const lines = [...byFn.values()]
-          .map((l) => ({ ...l, usd: Math.round(l.usd * 10000) / 10000 }))
+          .map((l) => ({
+            ...l,
+            usd: Math.round(l.usd * 10000) / 10000,
+            billed: Math.round(l.usd * rate.markup * 100) / 100,
+          }))
           .sort((a, b) => b.usd - a.usd)
         const rows = (unbilled as any[]) || []
         return json({
           outstanding: {
             totalUsd: Math.round(total * 10000) / 10000,
+            billedUsd: Math.round(total * rate.markup * 100) / 100,
             calls: rows.length,
             since: rows[0]?.created_at || null,
             until: rows[rows.length - 1]?.created_at || null,
           },
+          markup: rate.markup,
+          internal: rate.internal,
+          balanceOnFile: Math.round(balanceOnFile * 100) / 100,
           lines,
           recent: recent || [],
           lastStatement: (lastStmt as any[])?.[0] || null,
@@ -254,8 +312,8 @@ Deno.serve(async (req: Request) => {
         const { userId, amountUsd, note } = body
         const amt = Number(amountUsd)
         if (!userId) return json({ error: 'User is required.' }, 400)
-        if (!Number.isFinite(amt) || amt === 0 || Math.abs(amt) > 500) {
-          return json({ error: 'Amount must be between -500 and 500 dollars, and not zero.' }, 400)
+        if (!Number.isFinite(amt) || amt === 0 || Math.abs(amt) > 2000) {
+          return json({ error: 'Amount must be between -2000 and 2000 dollars, and not zero.' }, 400)
         }
         await rest('credit_ledger', {
           method: 'POST',
@@ -270,6 +328,26 @@ Deno.serve(async (req: Request) => {
         })
         const bal = await rest(`credit_balances?user_id=eq.${userId}&select=balance_usd`)
         return json({ ok: true, balance: Number((bal as any[])?.[0]?.balance_usd ?? 0) })
+      }
+
+      case 'setBillingConfig': {
+        // The account's commercial rate. Internal accounts bill at cost and
+        // never count as revenue; the settle RPC enforces both server-side.
+        const { userId, markup, internal } = body
+        if (!userId) return json({ error: 'User is required.' }, 400)
+        const patch: Record<string, unknown> = { user_id: userId, updated_by: me.id, updated_at: new Date().toISOString() }
+        if (markup !== undefined) {
+          const m = Number(markup)
+          if (!Number.isFinite(m) || m < 1 || m > 10) return json({ error: 'Markup must be between 1.00 and 10.00.' }, 400)
+          patch.markup = Math.round(m * 100) / 100
+        }
+        if (internal !== undefined) patch.internal = !!internal
+        await rest('billing_config', {
+          method: 'POST',
+          headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify(patch),
+        })
+        return json({ ok: true })
       }
 
       case 'setEntitlement': {
@@ -293,14 +371,16 @@ Deno.serve(async (req: Request) => {
       }
 
       case 'creditDetail': {
+        // balance = money on file (the ledger sum). Available after
+        // outstanding lives in credit_balances, but the console shows the
+        // ledger the way the customer paid into it.
         const { userId } = body
         if (!userId) return json({ error: 'User is required.' }, 400)
-        const [bal, entries] = await Promise.all([
-          rest(`credit_balances?user_id=eq.${userId}&select=balance_usd`),
-          rest(`credit_ledger?select=delta_usd,kind,note,created_at&user_id=eq.${userId}&order=created_at.desc&limit=20`),
-        ])
+        const entries = await rest(`credit_ledger?select=delta_usd,kind,note,created_at&user_id=eq.${userId}&order=created_at.desc&limit=20`)
+        const all = await rest(`credit_ledger?select=delta_usd&user_id=eq.${userId}`)
+        const balance = ((all as any[]) || []).reduce((a, r) => a + Number(r.delta_usd || 0), 0)
         return json({
-          balance: Number((bal as any[])?.[0]?.balance_usd ?? 0),
+          balance: Math.round(balance * 100) / 100,
           entries: entries || [],
         })
       }

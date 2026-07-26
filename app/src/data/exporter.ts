@@ -7,6 +7,7 @@ import type { Bottle, Cellar, Drink, Policy, Wish } from '@/domain/types'
 import { bottleValue, hasMarketValue, unitValueNow } from '@/domain/valuation'
 import { costBasis, totalReturn } from '@/domain/portfolio'
 import { attestationNumber, insuranceStatus, type Attestation, type AttestationDetail } from '@/data/insurance'
+import { fnLabel, statementNumber, type BillingStatement } from '@/data/admin'
 import { fmtDef } from '@/domain/formats'
 
 export interface ExportInput {
@@ -557,6 +558,108 @@ export async function exportSealedWorkbook(inp: SealedDocInput) {
  * dialog, where it saves as a clean PDF. */
 export function printInsuranceStatement(input: InsuranceInput) {
   printHTML(insuranceStatementHTML(input))
+}
+
+// ---- billing statement documents ----
+// Customer-sendable: only BILLED amounts appear. Cost and markup live in the
+// admin console, never in the document.
+
+const usd = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+/** A line's billed amount; statements from before markups bill at cost. */
+function lineBilled(st: BillingStatement, l: { usd: number; billed?: number }): number {
+  return l.billed ?? Math.round(l.usd * Number(st.markup ?? 1) * 100) / 100
+}
+
+export function usageStatementHTML(st: BillingStatement): string {
+  const e = escapeHtml
+  const num = statementNumber(st.seq)
+  const billedTotal = Number(st.billed_usd ?? st.total_usd)
+  const rows = (st.lines || [])
+    .map(
+      (l) => `<tr>
+        <td class="wine">${e(fnLabel(l.fn))}</td>
+        <td class="num">${l.calls}</td>
+        <td class="num">${(l.input_tokens + l.output_tokens).toLocaleString('en-US')}</td>
+        <td class="num">${l.searches || '–'}</td>
+        <td class="num strong">${e(usd(lineBilled(st, l)))}</td>
+      </tr>`,
+    )
+    .join('')
+  return `<!doctype html><html><head><meta charset="utf-8"><title>WineSnob statement ${e(num)}</title>
+<style>${STATEMENT_CSS}</style></head><body>
+<div class="wordmark">WineSnob</div>
+<div class="kicker">Usage statement · ${e(num)}</div>
+<h1>${e(st.user_email || 'Member account')}</h1>
+<div class="basis">Period ${e(dmy(st.period_start))} to ${e(dmy(st.period_end))} · locked ${e(dmy(st.created_at))}${st.note ? ` · ${e(st.note)}` : ''}</div>
+
+<div class="cover">
+  <div class="block">
+    <h3>Amount due</h3>
+    <div class="line"><span>Total</span><span class="hero">${e(usd(billedTotal))}</span></div>
+  </div>
+  <div class="block">
+    <h3>The period</h3>
+    <div class="line"><span>AI requests</span><span>${st.calls}</span></div>
+    <div class="line"><span>Tokens processed</span><span>${(st.input_tokens + st.output_tokens).toLocaleString('en-US')}</span></div>
+    <div class="line"><span>Live web searches</span><span>${st.searches}</span></div>
+  </div>
+</div>
+
+<h2>Services</h2>
+<table>
+  <thead><tr><th>Service</th><th class="num">Requests</th><th class="num">Tokens</th><th class="num">Searches</th><th class="num">Amount</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+
+<div class="basis-note">This is an informal usage statement prepared by WineSnob, locked as record ${e(num)} on ${e(dmy(st.created_at))}. Settled statements are permanent: the underlying record can never be altered or deleted.</div>
+
+<div class="foot"><span>Prepared with WineSnob · ${e(num)}</span><span>${today()}</span></div>
+</body></html>`
+}
+
+export function printUsageStatement(st: BillingStatement) {
+  printHTML(usageStatementHTML(st))
+}
+
+export async function exportUsageStatementWorkbook(st: BillingStatement) {
+  const num = statementNumber(st.seq)
+  const sheet: ExportSheet = {
+    name: 'Statement',
+    rows: [
+      ['WineSnob usage statement', ''],
+      ['Statement', num],
+      ['Account', st.user_email || ''],
+      ['Period', `${dmy(st.period_start)} to ${dmy(st.period_end)}`],
+      ['Locked', dmy(st.created_at)],
+      ...(st.note ? [['Note', st.note] as Cell[]] : []),
+      ['', ''],
+      ['AI requests', st.calls],
+      ['Tokens processed', st.input_tokens + st.output_tokens],
+      ['Live web searches', st.searches],
+      ['', ''],
+      ['Service', 'Amount ($)'],
+      ...(st.lines || []).map((l): Cell[] => [`${fnLabel(l.fn)} (${l.calls} ${l.calls === 1 ? 'request' : 'requests'})`, lineBilled(st, l)]),
+      ['', ''],
+      ['Total due', Number(st.billed_usd ?? st.total_usd)],
+    ],
+    money: [1],
+    widths: [40, 22],
+  }
+  const XLSX = await import('xlsx')
+  const wb = XLSX.utils.book_new()
+  const ws = XLSX.utils.aoa_to_sheet(sheet.rows)
+  ws['!cols'] = sheet.widths.map((wch) => ({ wch }))
+  for (let r = 1; r < sheet.rows.length; r++) {
+    const cell = ws[XLSX.utils.encode_cell({ r, c: 1 })]
+    if (cell && typeof cell.v === 'number') cell.z = '#,##0.00 "$"'
+  }
+  XLSX.utils.book_append_sheet(wb, ws, sheet.name)
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer
+  download(
+    new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+    `winesnob-statement-${num}.xlsx`
+  )
 }
 
 function printHTML(html: string) {

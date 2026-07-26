@@ -3,6 +3,10 @@ import { Button, Logo, Tag, TextField } from 'winesnob-design-system'
 import { useStore } from '@/store/store'
 import { hasSupabase, supabase } from '@/lib/supabase'
 import { adminCall, fnLabel, generatePassword, statementNumber, type AdminOverview, type AdminUser, type BillingStatement, type CreditDetail, type UsageDetail, type WhoAmI } from '@/data/admin'
+import { exportUsageStatementWorkbook, printUsageStatement } from '@/data/exporter'
+
+/** Token counts, quietly compact: 5.7M, 79.7K. */
+const tok = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(n))
 
 type Step = 'checking' | 'auth' | 'denied' | 'dash' | 'unavailable'
 
@@ -65,6 +69,16 @@ export function Admin() {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // The Anthropic meter stays live: the overview refreshes itself every 30
+  // seconds while the console is open.
+  useEffect(() => {
+    if (step !== 'dash') return
+    const t = setInterval(() => {
+      adminCall<AdminOverview>('overview').then(setOverview).catch(() => {})
+    }, 30000)
+    return () => clearInterval(t)
+  }, [step])
 
   const signIn = async () => {
     if (!email || !password) {
@@ -153,19 +167,33 @@ export function Admin() {
           <>
             {err && <div style={errText}>{err}</div>}
 
-            {/* overview */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--ws-space-3)' }}>
+            {/* overview: the commercial picture */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 'var(--ws-space-3)' }}>
               <div style={card}>
-                <div style={microLabel}>Users</div>
+                <div style={microLabel}>Accounts</div>
                 <div style={figure}>{overview ? overview.users : '·'}</div>
+                <div style={cardSub}>{overview ? `${overview.bottles} bottles under management` : ''}</div>
+              </div>
+              <div style={{ ...card, borderLeft: '2px solid var(--ws-bordeaux)' }}>
+                <div style={microLabel}>Anthropic · 30d</div>
+                <div style={figure}>{overview ? `$${overview.anthropic.cost.toFixed(2)}` : '·'}</div>
+                <div style={cardSub}>
+                  {overview
+                    ? `${tok(overview.anthropic.inputTokens)} in · ${tok(overview.anthropic.outputTokens)} out · ${overview.anthropic.searches} searches · live`
+                    : ''}
+                </div>
               </div>
               <div style={card}>
-                <div style={microLabel}>Bottles</div>
-                <div style={figure}>{overview ? overview.bottles : '·'}</div>
+                <div style={microLabel}>Revenue billed · 30d</div>
+                <div style={figure}>{overview ? `$${overview.revenueBilled30d.toFixed(2)}` : '·'}</div>
+                <div style={cardSub}>settled statements, internal excluded</div>
               </div>
               <div style={card}>
-                <div style={microLabel}>AI spend · 30d</div>
-                <div style={figure}>{overview ? `$${overview.aiSpend30d.toFixed(2)}` : '·'}</div>
+                <div style={microLabel}>Revenue outstanding</div>
+                <div style={{ ...figure, color: overview && overview.revenueOutstanding > 0 ? 'var(--ws-bordeaux)' : 'var(--ws-ink)' }}>
+                  {overview ? `$${overview.revenueOutstanding.toFixed(2)}` : '·'}
+                </div>
+                <div style={cardSub}>unbilled usage at each account's rate</div>
               </div>
             </div>
 
@@ -325,20 +353,30 @@ function UserRow({ u, self, onChanged, flash }: { u: AdminUser; self: boolean; o
 
   return (
     <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        <span style={{ fontFamily: 'var(--ws-font-display)', fontSize: 17, color: 'var(--ws-ink)', overflowWrap: 'anywhere' }}>{u.email}</span>
-        {u.name && <span style={{ fontSize: 13, color: 'var(--ws-muted)' }}>{u.name}</span>}
-        {u.isAdmin && <Tag tone="accent">Admin</Tag>}
-        {u.insurance && <Tag tone="ready">Insurance</Tag>}
-        {!u.confirmed && <Tag tone="cellar">Unconfirmed</Tag>}
-        <span style={{ marginLeft: 'auto', fontSize: 13.5, fontWeight: 600, color: u.aiCost30d > 0 ? 'var(--ws-ink)' : 'var(--ws-muted)' }}>
-          ${u.aiCost30d.toFixed(2)} <span style={{ fontWeight: 400, color: 'var(--ws-muted)' }}>· AI 30d</span>
-        </span>
-      </div>
-      <div style={{ fontSize: 12.5, color: 'var(--ws-muted)', lineHeight: 1.6 }}>
-        Joined {u.createdAt} · last seen {u.lastSignIn || 'never'} · {u.onboarded ? 'onboarded' : 'not onboarded'} · {u.bottles}{' '}
-        {u.bottles === 1 ? 'bottle' : 'bottles'}
-        {u.cellarValue > 0 ? ` (~${u.cellarValue.toLocaleString()} ${u.currency})` : ''} · {u.drinks} pours · {u.wishes} wishes · {u.aiCalls30d} AI calls
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: 'var(--ws-font-display)', fontSize: 17, color: 'var(--ws-ink)', overflowWrap: 'anywhere' }}>{u.email}</span>
+            {u.name && <span style={{ fontSize: 13, color: 'var(--ws-muted)' }}>{u.name}</span>}
+            {u.isAdmin && <Tag tone="accent">Admin</Tag>}
+            {u.internal && <Tag tone="neutral">Internal</Tag>}
+            {u.insurance && <Tag tone="ready">Insurance</Tag>}
+            {!u.confirmed && <Tag tone="cellar">Unconfirmed</Tag>}
+            {self && <span style={{ fontSize: 12.5, color: 'var(--ws-muted)' }}>This is you</span>}
+          </div>
+          <div style={{ fontSize: 12.5, color: 'var(--ws-muted)', lineHeight: 1.6, marginTop: 4 }}>
+            Joined {u.createdAt} · last seen {u.lastSignIn || 'never'} · {u.bottles} {u.bottles === 1 ? 'bottle' : 'bottles'}
+            {u.cellarValue > 0 ? ` (~${u.cellarValue.toLocaleString()} ${u.currency})` : ''} · {u.unbilledCalls} AI{' '}
+            {u.unbilledCalls === 1 ? 'call' : 'calls'} this period
+            {u.internal ? '' : ` · markup ${u.markup.toFixed(2)}x`}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', flex: 'none' }}>
+          <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 22, lineHeight: 1, color: u.unbilledBilled > 0 ? 'var(--ws-ink)' : 'var(--ws-muted)' }}>
+            ${u.unbilledBilled.toFixed(2)}
+          </div>
+          <div style={{ fontSize: 11.5, color: 'var(--ws-muted)', marginTop: 3 }}>costs you ${u.unbilledCost.toFixed(2)}</div>
+        </div>
       </div>
 
       {pwOpen && (
@@ -370,9 +408,7 @@ function UserRow({ u, self, onChanged, flash }: { u: AdminUser; self: boolean; o
           {u.insurance ? 'Withdraw insurance' : 'Grant insurance'}
         </button>
         <div style={{ flex: 1 }} />
-        {self ? (
-          <span style={{ fontSize: 12.5, color: 'var(--ws-muted)' }}>This is you</span>
-        ) : (
+        {self ? null : (
           <button
             className="ws-danger-hover"
             onClick={() => void del()}
@@ -436,7 +472,8 @@ function BillingPanel({ userId, email, flash }: { userId: string; email: string;
     setErr(null)
     try {
       const res = await adminCall<{ statement: BillingStatement }>('settleUser', { userId })
-      flash(`${statementNumber(res.statement.seq)} settled: $${Number(res.statement.total_usd).toFixed(2)}`, 4200)
+      const billed = Number(res.statement.billed_usd ?? res.statement.total_usd)
+      flash(`${statementNumber(res.statement.seq)} settled: $${billed.toFixed(2)} drawn from the balance`, 4200)
       setOpenStmt(res.statement.id)
       await load()
     } catch (e) {
@@ -449,32 +486,47 @@ function BillingPanel({ userId, email, flash }: { userId: string; email: string;
 
   const day = (iso?: string | null) => (iso ? String(iso).slice(0, 10) : '')
   const out = detail?.outstanding
+  const billedOut = out ? (out.billedUsd ?? out.totalUsd) : 0
 
   return (
     <div style={{ borderTop: '0.5px solid var(--ws-border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
       {!detail && !err && <div style={{ fontSize: 13, color: 'var(--ws-muted)' }}>Loading usage…</div>}
       {err && <div style={errText}>{err}</div>}
 
-      {credit && <CreditBlock userId={userId} email={email} credit={credit} onChanged={() => void load()} flash={flash} />}
+      {detail && (
+        <Section n={1} title="Markup for this customer" sub="What you bill is cost times this number. Nothing is saved until you apply it.">
+          <RateBlock userId={userId} detail={detail} onChanged={() => void load()} flash={flash} />
+        </Section>
+      )}
+
+      {credit && (
+        <Section n={2} kicker="Account balance" title="Credit on file" sub="Money this customer has paid in. Settled statements are drawn down from here.">
+          <BalanceBlock userId={userId} email={email} credit={credit} onChanged={() => void load()} flash={flash} />
+        </Section>
+      )}
 
       {detail && out && (
-        <div style={{ background: 'var(--ws-alabaster)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-md)', padding: 'var(--ws-space-4)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <Section n={3} kicker="Unbilled usage" title="Outstanding since last statement" sub="Calls made but not yet locked into a statement.">
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 150 }}>
-              <div style={microLabel}>Outstanding since last statement</div>
-              <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 27, lineHeight: 1, color: 'var(--ws-ink)' }}>${out.totalUsd.toFixed(2)}</div>
+              <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 27, lineHeight: 1, color: 'var(--ws-ink)' }}>${billedOut.toFixed(2)}</div>
               <div style={{ fontSize: 12, color: 'var(--ws-muted)', marginTop: 4 }}>
-                {out.calls === 0 ? 'No unbilled usage' : `${out.calls} calls · ${day(out.since)} to ${day(out.until)}`}
-                {detail.lastStatement ? ` · previous: ${statementNumber(detail.lastStatement.seq)} on ${day(detail.lastStatement.created_at)}` : ''}
+                Your Anthropic cost ${out.totalUsd.toFixed(2)}
+                {out.calls === 0 ? ' · no unbilled usage' : ` · ${out.calls} calls · ${day(out.since)} to ${day(out.until)}`}
               </div>
             </div>
             <Button variant="primary" size="sm" onClick={() => void settle()} disabled={busy || out.calls === 0}>
-              {busy ? 'Settling…' : armed ? `Confirm: settle $${out.totalUsd.toFixed(2)}` : 'Settle now'}
+              {busy ? 'Settling…' : armed ? `Confirm: settle $${billedOut.toFixed(2)}` : 'Settle now'}
             </Button>
           </div>
 
           {detail.lines.length > 0 && (
-            <div style={{ borderTop: '0.5px solid var(--ws-border)', paddingTop: 8 }}>
+            <div style={{ borderTop: '0.5px solid var(--ws-border)', paddingTop: 4, marginTop: 8 }}>
+              <div style={{ display: 'flex', gap: 10, padding: '4px 0', fontSize: 10.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ws-muted)' }}>
+                <span>Service</span>
+                <span style={{ marginLeft: 'auto' }}>Your cost</span>
+                <span style={{ width: 70, textAlign: 'right' }}>Billed</span>
+              </div>
               {detail.lines.map((l) => (
                 <div key={l.fn} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '5px 0', fontSize: 13.5 }}>
                   <span style={{ color: 'var(--ws-ink)' }}>{fnLabel(l.fn)}</span>
@@ -482,17 +534,17 @@ function BillingPanel({ userId, email, flash }: { userId: string; email: string;
                     {l.calls} {l.calls === 1 ? 'call' : 'calls'}
                     {l.searches > 0 ? ` · ${l.searches} searches` : ''}
                   </span>
-                  <span style={{ marginLeft: 'auto', fontWeight: 600, color: 'var(--ws-ink)' }}>${l.usd.toFixed(2)}</span>
+                  <span style={{ marginLeft: 'auto', color: 'var(--ws-muted)' }}>${l.usd.toFixed(2)}</span>
+                  <span style={{ width: 70, textAlign: 'right', fontWeight: 600, color: 'var(--ws-ink)' }}>${(l.billed ?? l.usd).toFixed(2)}</span>
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </Section>
       )}
 
       {statements.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={microLabel}>Statements · locked</div>
+        <Section n={4} kicker="Statements" title="Locked history" sub="Settled periods. These cannot be edited, and each downloads as a document.">
           {statements.map((s) => (
             <div key={s.id}>
               <button
@@ -504,21 +556,123 @@ function BillingPanel({ userId, email, flash }: { userId: string; email: string;
                 <span style={{ fontSize: 12.5, color: 'var(--ws-muted)' }}>
                   {day(s.period_start)} to {day(s.period_end)} · {s.calls} calls
                 </span>
-                <span style={{ marginLeft: 'auto', fontWeight: 600, color: 'var(--ws-ink)' }}>${Number(s.total_usd).toFixed(2)}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--ws-muted)' }}>cost ${Number(s.total_usd).toFixed(2)}</span>
+                <span style={{ fontWeight: 600, color: 'var(--ws-ink)' }}>${Number(s.billed_usd ?? s.total_usd).toFixed(2)}</span>
                 <span style={{ fontSize: 12, color: 'var(--ws-muted)' }}>{openStmt === s.id ? '▴' : '▾'}</span>
               </button>
               {openStmt === s.id && <StatementCard s={s} email={email} />}
             </div>
           ))}
-        </div>
+        </Section>
       )}
     </div>
   )
 }
 
-/** Prepaid credits: the live balance, manual grants, and the locked ledger.
- * Every grant is confirmed once in a small dialog before it is written. */
-function CreditBlock({ userId, email, credit, onChanged, flash }: { userId: string; email: string; credit: CreditDetail; onChanged: () => void; flash: (m: string, ms?: number) => void }) {
+/** The mockup's numbered blocks: a quiet frame with kicker, title and sub. */
+function Section({ n, kicker, title, sub, children }: { n: number; kicker?: string; title: string; sub: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: 'var(--ws-alabaster)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-md)', padding: 'var(--ws-space-4)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div>
+        <div style={microLabel}>
+          {n} · {kicker || 'Rate'}
+        </div>
+        <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 17, color: 'var(--ws-ink)' }}>{title}</div>
+        <div style={{ fontSize: 12.5, color: 'var(--ws-muted)', marginTop: 2, lineHeight: 1.5 }}>{sub}</div>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+/** The rate: a stepper, a live preview of what the outstanding usage would
+ * bill, and an explicit apply. Internal accounts bill at cost. */
+function RateBlock({ userId, detail, onChanged, flash }: { userId: string; detail: UsageDetail; onChanged: () => void; flash: (m: string, ms?: number) => void }) {
+  const current = detail.markup ?? 1.5
+  const [val, setVal] = useState(current.toFixed(2))
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  useEffect(() => setVal(current.toFixed(2)), [current])
+
+  const m = Number(val)
+  const valid = Number.isFinite(m) && m >= 1 && m <= 10
+  const changed = valid && Math.abs(m - current) > 0.0001
+  const cost = detail.outstanding.totalUsd
+
+  const apply = async () => {
+    setBusy(true)
+    setErr(null)
+    try {
+      await adminCall('setBillingConfig', { userId, markup: m })
+      flash(`Markup set to ${m.toFixed(2)}x`, 3200)
+      onChanged()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not set the markup')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggleInternal = async () => {
+    setBusy(true)
+    setErr(null)
+    try {
+      await adminCall('setBillingConfig', { userId, internal: !detail.internal })
+      flash(detail.internal ? 'Account is billable again' : 'Marked as internal: bills at cost, excluded from revenue', 3600)
+      onChanged()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not update the account')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {detail.internal ? (
+        <div style={{ fontSize: 13.5, color: 'var(--ws-ink)', lineHeight: 1.55 }}>
+          Internal account: usage bills at cost and never counts as revenue.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            className="ws-input"
+            type="number"
+            step="0.05"
+            min={1}
+            max={10}
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            style={{ width: 96, flex: 'none' }}
+            aria-label="Markup"
+          />
+          <span style={{ color: 'var(--ws-muted)', fontSize: 13.5 }}>
+            × cost ${cost.toFixed(2)} →{' '}
+            <strong style={{ fontFamily: 'var(--ws-font-display)', fontSize: 17, color: 'var(--ws-ink)' }}>
+              ${valid ? (Math.round((cost * m + Number.EPSILON) * 100) / 100).toFixed(2) : '·'}
+            </strong>
+          </span>
+          <div style={{ flex: 1 }} />
+          {changed ? (
+            <Button variant="primary" size="sm" onClick={() => void apply()} disabled={busy}>
+              {busy ? 'Applying…' : `Apply ${m.toFixed(2)}x`}
+            </Button>
+          ) : (
+            <span style={{ fontSize: 12.5, color: 'var(--ws-muted)' }}>{valid ? 'No change to apply' : 'Between 1.00 and 10.00'}</span>
+          )}
+        </div>
+      )}
+      {err && <div style={errText}>{err}</div>}
+      <button className="ws-linkish" onClick={() => void toggleInternal()} style={{ ...linkBtn, fontSize: 12.5, alignSelf: 'flex-start' }} disabled={busy}>
+        {detail.internal ? 'Make billable at a markup' : 'Mark as internal account'}
+      </button>
+    </div>
+  )
+}
+
+/** Money on file: payments recorded against the account, drawn down by
+ * settled statements. Every entry is confirmed once before it is written. */
+function BalanceBlock({ userId, email, credit, onChanged, flash }: { userId: string; email: string; credit: CreditDetail; onChanged: () => void; flash: (m: string, ms?: number) => void }) {
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [confirming, setConfirming] = useState(false)
@@ -527,9 +681,9 @@ function CreditBlock({ userId, email, credit, onChanged, flash }: { userId: stri
   const [ledgerOpen, setLedgerOpen] = useState(false)
 
   const value = Number(amount)
-  const valid = Number.isFinite(value) && value !== 0 && Math.abs(value) <= 500
+  const valid = Number.isFinite(value) && value !== 0 && Math.abs(value) <= 2000
 
-  const askToGrant = () => {
+  const askToRecord = () => {
     if (!valid) {
       setErr('Enter an amount, e.g. 25 (or negative to correct).')
       return
@@ -538,18 +692,18 @@ function CreditBlock({ userId, email, credit, onChanged, flash }: { userId: stri
     setConfirming(true)
   }
 
-  const grant = async () => {
+  const record = async () => {
     setConfirming(false)
     setBusy(true)
     setErr(null)
     try {
-      const res = await adminCall<{ balance: number }>('grantCredits', { userId, amountUsd: value, note: note.trim() || undefined })
-      flash(`${value > 0 ? '+' : ''}$${value.toFixed(2)} granted. Balance: $${res.balance.toFixed(2)}`, 3800)
+      await adminCall('grantCredits', { userId, amountUsd: value, note: note.trim() || undefined })
+      flash(value > 0 ? `$${value.toFixed(2)} payment recorded for ${email}` : `$${Math.abs(value).toFixed(2)} correction recorded`, 3800)
       setAmount('')
       setNote('')
       onChanged()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Could not grant credits')
+      setErr(e instanceof Error ? e.message : 'Could not record the payment')
     } finally {
       setBusy(false)
     }
@@ -559,26 +713,23 @@ function CreditBlock({ userId, email, credit, onChanged, flash }: { userId: stri
   const low = credit.balance < 0
 
   return (
-    <div style={{ background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-md)', padding: 'var(--ws-space-4)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        <div>
-          <div style={microLabel}>Credit balance</div>
-          <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 24, lineHeight: 1, color: low ? 'var(--ws-bordeaux)' : 'var(--ws-ink)' }}>
-            ${credit.balance.toFixed(2)}
-          </div>
-        </div>
-        {credit.balance < -10 && <Tag tone="accent">AI paused</Tag>}
-        {low && credit.balance >= -10 && <Tag tone="cellar">Overdrawn</Tag>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-md)', padding: '10px 14px', display: 'flex', alignItems: 'baseline', gap: 10 }}>
+        <span style={{ fontSize: 13.5, color: 'var(--ws-ink)' }}>Balance on file</span>
+        {low && <Tag tone="cellar">In arrears</Tag>}
+        <span style={{ marginLeft: 'auto', fontFamily: 'var(--ws-font-display)', fontSize: 24, lineHeight: 1, color: low ? 'var(--ws-bordeaux)' : 'var(--ws-ink)' }}>
+          ${credit.balance.toFixed(2)}
+        </span>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        <div style={{ width: 110 }}>
-          <TextField label="Amount $" placeholder="25" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <div style={{ width: 130 }}>
+          <TextField label="Record a payment ($)" placeholder="25" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </div>
         <div style={{ flex: 1, minWidth: 150 }}>
-          <TextField label="Note (optional)" placeholder="e.g. Paid by bank transfer" value={note} onChange={(e) => setNote(e.target.value)} />
+          <TextField label="Note (optional)" placeholder="e.g. Bank transfer" value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
-        <Button variant="primary" size="sm" onClick={askToGrant} disabled={busy}>
-          {busy ? 'Granting…' : 'Grant'}
+        <Button variant="secondary" size="sm" onClick={askToRecord} disabled={busy}>
+          {busy ? 'Recording…' : 'Add credit'}
         </Button>
       </div>
       {err && <div style={errText}>{err}</div>}
@@ -587,12 +738,12 @@ function CreditBlock({ userId, email, credit, onChanged, flash }: { userId: stri
         <div style={{ position: 'fixed', inset: 0, zIndex: 310, background: 'rgba(31, 27, 24, 0.32)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--ws-space-5)' }} onClick={() => setConfirming(false)}>
           <div style={{ background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-lg)', boxShadow: 'var(--ws-shadow)', padding: 'var(--ws-space-5)', width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 12 }} onClick={(e) => e.stopPropagation()}>
             <div style={{ fontFamily: 'var(--ws-font-display)', fontSize: 19, color: 'var(--ws-ink)' }}>
-              {value > 0 ? 'Grant credit?' : 'Apply correction?'}
+              {value > 0 ? 'Record this payment?' : 'Apply correction?'}
             </div>
             <div style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--ws-ink)' }}>
-              {value > 0 ? 'Grant ' : 'Deduct '}
+              {value > 0 ? 'Record ' : 'Deduct '}
               <strong>${Math.abs(value).toFixed(2)}</strong>
-              {value > 0 ? ' to ' : ' from '}
+              {value > 0 ? ' received from ' : ' from '}
               <span style={{ overflowWrap: 'anywhere' }}>{email}</span>.
               {note.trim() ? ` Note: ${note.trim()}` : ''}
               {' '}The ledger is permanent; a mistake is corrected with a new entry, never undone.
@@ -602,8 +753,8 @@ function CreditBlock({ userId, email, credit, onChanged, flash }: { userId: stri
               <Button variant="secondary" onClick={() => setConfirming(false)}>
                 Cancel
               </Button>
-              <Button variant="primary" onClick={() => void grant()}>
-                {value > 0 ? `Grant $${Math.abs(value).toFixed(2)}` : `Deduct $${Math.abs(value).toFixed(2)}`}
+              <Button variant="primary" onClick={() => void record()}>
+                {value > 0 ? `Record $${Math.abs(value).toFixed(2)}` : `Deduct $${Math.abs(value).toFixed(2)}`}
               </Button>
             </div>
           </div>
@@ -619,7 +770,7 @@ function CreditBlock({ userId, email, credit, onChanged, flash }: { userId: stri
               {credit.entries.map((e, i) => (
                 <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '5px 0', fontSize: 12.5, borderBottom: '0.5px solid var(--ws-border)' }}>
                   <span style={{ color: 'var(--ws-muted)' }}>{day(e.created_at)}</span>
-                  <span style={{ color: 'var(--ws-ink)' }}>{e.kind === 'usage' ? fnLabel(e.note || '') || 'Usage' : e.note || (e.kind === 'grant' ? 'Grant' : 'Adjustment')}</span>
+                  <span style={{ color: 'var(--ws-ink)' }}>{e.kind === 'usage' ? `Statement ${e.note || ''}`.trim() : e.note || (e.kind === 'grant' ? 'Payment' : 'Adjustment')}</span>
                   <span style={{ marginLeft: 'auto', fontWeight: 600, color: e.delta_usd < 0 ? 'var(--ws-bordeaux)' : 'var(--ws-green, #2f5d3a)' }}>
                     {e.delta_usd > 0 ? '+' : ''}${e.delta_usd.toFixed(2)}
                   </span>
@@ -633,9 +784,13 @@ function CreditBlock({ userId, email, credit, onChanged, flash }: { userId: stri
   )
 }
 
-/** The unofficial invoice: a locked usage statement, presented properly. */
+/** The unofficial invoice: a locked usage statement at BILLED prices (what
+ * the customer pays), with its downloads. Cost stays in the console line. */
 function StatementCard({ s, email }: { s: BillingStatement; email: string }) {
   const day = (iso?: string | null) => (iso ? String(iso).slice(0, 10) : '')
+  const markup = Number(s.markup ?? 1)
+  const lineBilled = (l: { usd: number; billed?: number }) => l.billed ?? Math.round(l.usd * markup * 100) / 100
+  const billedTotal = Number(s.billed_usd ?? s.total_usd)
   return (
     <div style={{ background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border-strong)', borderRadius: 'var(--ws-radius-md)', padding: 'var(--ws-space-5)', display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
@@ -663,16 +818,25 @@ function StatementCard({ s, email }: { s: BillingStatement; email: string }) {
               {l.calls} {l.calls === 1 ? 'call' : 'calls'}
               {l.searches > 0 ? ` · ${l.searches} searches` : ''}
             </span>
-            <span style={{ marginLeft: 'auto', color: 'var(--ws-ink)' }}>${Number(l.usd).toFixed(2)}</span>
+            <span style={{ marginLeft: 'auto', color: 'var(--ws-ink)' }}>${lineBilled(l).toFixed(2)}</span>
           </div>
         ))}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '9px 0' }}>
           <span style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ws-muted)' }}>Total</span>
-          <span style={{ marginLeft: 'auto', fontFamily: 'var(--ws-font-display)', fontSize: 20, color: 'var(--ws-ink)' }}>${Number(s.total_usd).toFixed(2)}</span>
+          <span style={{ marginLeft: 'auto', fontFamily: 'var(--ws-font-display)', fontSize: 20, color: 'var(--ws-ink)' }}>${billedTotal.toFixed(2)}</span>
         </div>
       </div>
-      <div style={{ fontSize: 11.5, color: 'var(--ws-muted)' }}>
-        Settled {day(s.created_at)} · locked · an informal usage statement, not a tax invoice
+      <div style={{ display: 'flex', gap: 'var(--ws-space-4)', alignItems: 'baseline', borderTop: '0.5px solid var(--ws-border)', paddingTop: 8, flexWrap: 'wrap' }}>
+        <button className="ws-linkish ws-linkish--accent" onClick={() => printUsageStatement(s)} style={{ ...linkBtn, color: 'var(--ws-bordeaux)' }}>
+          Statement (PDF)
+        </button>
+        <button className="ws-linkish" onClick={() => void exportUsageStatementWorkbook(s)} style={linkBtn}>
+          Excel
+        </button>
+        <span style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--ws-muted)' }}>
+          Settled {day(s.created_at)} · locked
+          {billedTotal !== Number(s.total_usd) ? ` · your cost $${Number(s.total_usd).toFixed(2)} at ${markup.toFixed(2)}x` : ''}
+        </span>
       </div>
     </div>
   )
@@ -713,5 +877,6 @@ const card: React.CSSProperties = {
 }
 const microLabel: React.CSSProperties = { fontSize: 10.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ws-muted)', marginBottom: 5 }
 const figure: React.CSSProperties = { fontFamily: 'var(--ws-font-display)', fontSize: 24, lineHeight: 1.05, color: 'var(--ws-ink)' }
+const cardSub: React.CSSProperties = { fontSize: 11, color: 'var(--ws-muted)', marginTop: 4, lineHeight: 1.45 }
 const linkBtn: React.CSSProperties = { background: 'none', border: 0, cursor: 'pointer', font: 'inherit', fontSize: 13.5, padding: '4px 0' }
 const errText: React.CSSProperties = { fontSize: 13, color: 'var(--ws-bordeaux)', lineHeight: 1.45 }

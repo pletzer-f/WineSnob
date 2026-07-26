@@ -18,12 +18,24 @@ export interface AdminUser {
   aiCalls30d: number
   isAdmin: boolean
   insurance: boolean
+  /** The commercial rate: billed = cost x markup. Internal bills at cost. */
+  markup: number
+  internal: boolean
+  unbilledCost: number
+  unbilledBilled: number
+  unbilledCalls: number
 }
 
 export interface AdminOverview {
   users: number
   bottles: number
   aiSpend30d: number
+  /** Your live Anthropic meter for the period. */
+  anthropic: { cost: number; inputTokens: number; outputTokens: number; searches: number; calls: number }
+  /** Settled statements in the period, internal accounts excluded. */
+  revenueBilled30d: number
+  /** What you could bill today: everyone's unbilled usage at their markup. */
+  revenueOutstanding: number
 }
 
 export interface WhoAmI {
@@ -41,13 +53,19 @@ export interface UsageLine {
   output_tokens: number
   searches: number
   usd: number
+  /** usd at the account's markup, what the customer pays. */
+  billed?: number
 }
 
 export interface UsageDetail {
-  outstanding: { totalUsd: number; calls: number; since: string | null; until: string | null }
+  outstanding: { totalUsd: number; billedUsd?: number; calls: number; since: string | null; until: string | null }
+  markup?: number
+  internal?: boolean
+  /** The ledger sum: money paid in minus settled statements. */
+  balanceOnFile?: number
   lines: UsageLine[]
   recent: { fn: string; cost_usd: number; searches: number; created_at: string; statement_id: string | null }[]
-  lastStatement: { id: string; seq: number; period_start: string | null; period_end: string; total_usd: number; created_at: string } | null
+  lastStatement: { id: string; seq: number; period_start: string | null; period_end: string; total_usd: number; billed_usd?: number | null; created_at: string } | null
 }
 
 export interface BillingStatement {
@@ -62,6 +80,9 @@ export interface BillingStatement {
   output_tokens: number
   searches: number
   total_usd: number
+  /** Frozen at settle time; older statements predate markups (billed = cost). */
+  markup?: number | null
+  billed_usd?: number | null
   lines: UsageLine[]
   note: string | null
   created_at: string
@@ -125,9 +146,27 @@ export function generatePassword(length = 14): string {
 // ---- offline demo: a small mock console with a working billing ledger ----
 
 const demoUsers: AdminUser[] = [
-  { id: 'demo-owner', email: 'owner@winesnob.app', name: 'The Owner', createdAt: '2026-06-02', lastSignIn: '2026-07-25', confirmed: true, onboarded: true, currency: 'EUR', bottles: 82, cellarValue: 34738, drinks: 7, wishes: 5, aiCost30d: 31.79, aiCalls30d: 101, isAdmin: true, insurance: true },
-  { id: 'demo-guest', email: 'guest@winesnob.app', name: 'A Guest', createdAt: '2026-07-01', lastSignIn: '2026-07-20', confirmed: true, onboarded: true, currency: 'EUR', bottles: 24, cellarValue: 6120, drinks: 2, wishes: 1, aiCost30d: 4.12, aiCalls30d: 18, isAdmin: false, insurance: false },
+  { id: 'demo-owner', email: 'owner@winesnob.app', name: 'The Owner', createdAt: '2026-06-02', lastSignIn: '2026-07-25', confirmed: true, onboarded: true, currency: 'EUR', bottles: 82, cellarValue: 34738, drinks: 7, wishes: 5, aiCost30d: 31.79, aiCalls30d: 101, isAdmin: true, insurance: true, markup: 1, internal: true, unbilledCost: 0, unbilledBilled: 0, unbilledCalls: 0 },
+  { id: 'demo-guest', email: 'guest@winesnob.app', name: 'A Guest', createdAt: '2026-07-01', lastSignIn: '2026-07-20', confirmed: true, onboarded: true, currency: 'EUR', bottles: 24, cellarValue: 6120, drinks: 2, wishes: 1, aiCost30d: 4.12, aiCalls30d: 18, isAdmin: false, insurance: false, markup: 1.5, internal: false, unbilledCost: 0, unbilledBilled: 0, unbilledCalls: 0 },
 ]
+
+const demoCfg = new Map<string, { markup: number; internal: boolean }>([
+  ['demo-owner', { markup: 1, internal: true }],
+  ['demo-guest', { markup: 1.5, internal: false }],
+])
+const demoRate = (id: string) => {
+  const c = demoCfg.get(id) || { markup: 1.5, internal: false }
+  return c.internal ? { markup: 1, internal: true } : c
+}
+const demoOutstanding = (id: string) => {
+  const lines = demoUnbilled.get(id) || []
+  const cost = lines.reduce((a, l) => a + l.usd, 0)
+  return {
+    cost: Math.round(cost * 10000) / 10000,
+    billed: Math.round(cost * demoRate(id).markup * 100) / 100,
+    calls: lines.reduce((a, l) => a + l.calls, 0),
+  }
+}
 
 const demoUnbilled = new Map<string, UsageLine[]>([
   ['demo-owner', [
@@ -162,26 +201,61 @@ function demoAdmin(action: string, params: Record<string, unknown>): unknown {
   switch (action) {
     case 'whoami':
       return { id: 'demo-owner', email: 'owner@winesnob.app', admin: true }
-    case 'overview':
-      return { users: demoUsers.length, bottles: demoUsers.reduce((a, u) => a + u.bottles, 0), aiSpend30d: 35.91 }
+    case 'overview': {
+      const anthropic = { cost: 35.91, inputTokens: 5710134, outputTokens: 79731, searches: 236, calls: 119 }
+      const revenueOutstanding = demoUsers.filter((u) => !demoRate(u.id).internal).reduce((a, u) => a + demoOutstanding(u.id).billed, 0)
+      const revenueBilled30d = demoStatements
+        .filter((s) => s.user_id && !demoRate(s.user_id).internal)
+        .reduce((a, s) => a + Number(s.billed_usd ?? s.total_usd), 0)
+      return {
+        users: demoUsers.length,
+        bottles: demoUsers.reduce((a, u) => a + u.bottles, 0),
+        aiSpend30d: anthropic.cost,
+        anthropic,
+        revenueBilled30d: Math.round(revenueBilled30d * 100) / 100,
+        revenueOutstanding: Math.round(revenueOutstanding * 100) / 100,
+      } satisfies AdminOverview
+    }
     case 'listUsers':
-      return { users: demoUsers }
+      return {
+        users: demoUsers.map((u) => {
+          const rate = demoRate(u.id)
+          const out = demoOutstanding(u.id)
+          return { ...u, markup: rate.markup, internal: rate.internal, unbilledCost: out.cost, unbilledBilled: out.billed, unbilledCalls: out.calls }
+        }),
+      }
     case 'usageDetail': {
-      const lines = (demoUnbilled.get(userId) || []).slice().sort((a, b) => b.usd - a.usd)
+      const rate = demoRate(userId)
+      const lines = (demoUnbilled.get(userId) || [])
+        .slice()
+        .sort((a, b) => b.usd - a.usd)
+        .map((l) => ({ ...l, billed: Math.round(l.usd * rate.markup * 100) / 100 }))
       const total = lines.reduce((a, l) => a + l.usd, 0)
       const calls = lines.reduce((a, l) => a + l.calls, 0)
+      const balance = (demoCredits.get(userId) || []).reduce((a, e) => a + e.delta_usd, 0)
       const last = demoStatements.filter((s) => s.user_id === userId)[0] || null
       return {
-        outstanding: { totalUsd: Math.round(total * 10000) / 10000, calls, since: calls ? '2026-07-11T09:40:00Z' : null, until: calls ? '2026-07-25T17:20:00Z' : null },
+        outstanding: {
+          totalUsd: Math.round(total * 10000) / 10000,
+          billedUsd: Math.round(total * rate.markup * 100) / 100,
+          calls,
+          since: calls ? '2026-07-11T09:40:00Z' : null,
+          until: calls ? '2026-07-25T17:20:00Z' : null,
+        },
+        markup: rate.markup,
+        internal: rate.internal,
+        balanceOnFile: Math.round(balance * 100) / 100,
         lines,
         recent: lines.slice(0, 3).map((l, i) => ({ fn: l.fn, cost_usd: Math.round((l.usd / Math.max(1, l.calls)) * 1e4) / 1e4, searches: 0, created_at: `2026-07-2${5 - i}T1${i}:0${i}:00Z`, statement_id: null })),
-        lastStatement: last ? { id: last.id, seq: last.seq, period_start: last.period_start, period_end: last.period_end, total_usd: last.total_usd, created_at: last.created_at } : null,
+        lastStatement: last ? { id: last.id, seq: last.seq, period_start: last.period_start, period_end: last.period_end, total_usd: last.total_usd, billed_usd: last.billed_usd, created_at: last.created_at } : null,
       } satisfies UsageDetail
     }
     case 'settleUser': {
       const lines = demoUnbilled.get(userId) || []
       if (!lines.length) throw new Error('Nothing to settle: no unbilled usage.')
+      const rate = demoRate(userId)
       const total = lines.reduce((a, l) => a + l.usd, 0)
+      const billed = Math.round(total * rate.markup * 100) / 100
       const st: BillingStatement = {
         id: `demo-st-${++demoSeq}`,
         seq: demoSeq,
@@ -194,13 +268,29 @@ function demoAdmin(action: string, params: Record<string, unknown>): unknown {
         output_tokens: lines.reduce((a, l) => a + l.output_tokens, 0),
         searches: lines.reduce((a, l) => a + l.searches, 0),
         total_usd: Math.round(total * 10000) / 10000,
-        lines: lines.slice().sort((a, b) => b.usd - a.usd),
+        markup: rate.markup,
+        billed_usd: billed,
+        lines: lines.slice().sort((a, b) => b.usd - a.usd).map((l) => ({ ...l, billed: Math.round(l.usd * rate.markup * 100) / 100 })),
         note: (params.note as string) || null,
         created_at: new Date().toISOString(),
       }
       demoStatements.unshift(st)
       demoUnbilled.set(userId, [])
+      // The settlement is the draw (internal accounts draw nothing).
+      if (!rate.internal) {
+        const entries = demoCredits.get(userId) || []
+        entries.push({ delta_usd: -billed, kind: 'usage', note: `WS-${String(st.seq).padStart(4, '0')}`, created_at: new Date().toISOString() })
+        demoCredits.set(userId, entries)
+      }
       return { statement: st }
+    }
+    case 'setBillingConfig': {
+      const cur = demoCfg.get(userId) || { markup: 1.5, internal: false }
+      demoCfg.set(userId, {
+        markup: params.markup !== undefined ? Number(params.markup) : cur.markup,
+        internal: params.internal !== undefined ? !!params.internal : cur.internal,
+      })
+      return { ok: true }
     }
     case 'listStatements':
       return { statements: userId ? demoStatements.filter((s) => s.user_id === userId) : demoStatements }

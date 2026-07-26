@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Avatar, Button, SectionHeader, SettingsRow, Switch, Select } from 'winesnob-design-system'
 import { useStore } from '@/store/store'
 import { exportCellarCSV, exportWorkbook, type ExportInput } from '@/data/exporter'
-import { CREDIT_FLOOR_USD, SOMMELIER_COST_USD, VALUATION_COST_USD } from '@/data/credits'
+import { CREDIT_FLOOR_USD, SOMMELIER_COST_USD, VALUATION_COST_USD, fetchMyBilling, type MyBilling } from '@/data/credits'
 import { fetchInsuranceEntitled } from '@/data/insurance'
 import type { Currency, PriceCadence, ViewMode } from '@/domain/types'
 
@@ -62,7 +62,6 @@ export function Settings() {
   const manualLocked = !!nextManual && nextManual.getTime() > Date.now()
   const nextManualDay = nextManual ? nextManual.toISOString().slice(0, 10) : ''
   const wineCount = s.bottles.length
-  const estUsd = Math.max(1, Math.round(wineCount * 0.28))
   const valuationDesc = connected
     ? `Priced by ${valSource}${valAsOf ? `, as of ${valAsOf}` : ''}.${manualLocked ? ` Manual pricing again from ${nextManualDay}.` : ' One manual run a month.'}`
     : notConnected
@@ -74,11 +73,15 @@ export function Settings() {
     void s.refreshValuations(true)
   }
 
-  // Usage credits: the balance, and what it buys in plain terms.
+  // Usage credits: money on file, this period's usage at the account's
+  // rate, and what remains, in plain terms.
+  const [mb, setMb] = useState<MyBilling | null>(null)
   useEffect(() => {
     void s.refreshCredits()
+    void fetchMyBilling().then(setMb)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  const markup = mb?.markup ?? 1.5
 
   // The insurance suite shows only for accounts holding the tier.
   const [insEntitled, setInsEntitled] = useState(false)
@@ -89,8 +92,10 @@ export function Settings() {
   const balKnown = bal != null
   const negative = balKnown && bal < 0
   const floored = balKnown && bal < CREDIT_FLOOR_USD
-  const valuationsLeft = balKnown ? Math.max(0, Math.floor(bal / VALUATION_COST_USD)) : 0
-  const questionsLeft = balKnown ? Math.max(0, Math.floor(bal / SOMMELIER_COST_USD)) : 0
+  const valuationPrice = VALUATION_COST_USD * markup
+  const questionPrice = SOMMELIER_COST_USD * markup
+  const valuationsLeft = balKnown ? Math.max(0, Math.floor(bal / valuationPrice)) : 0
+  const questionsLeft = balKnown ? Math.max(0, Math.floor(bal / questionPrice)) : 0
   const creditDesc = !balKnown
     ? 'Your balance loads with the live backend.'
     : floored
@@ -98,9 +103,9 @@ export function Settings() {
       : negative
         ? 'You are drawing on courtesy credit. Please ask your administrator to top up.'
         : bal === 0
-          ? 'No credit yet. Your administrator can grant a starting balance.'
+          ? 'No credit yet. Your administrator records payments as balance.'
           : `Roughly ${valuationsLeft} bottle ${valuationsLeft === 1 ? 'valuation' : 'valuations'} or ${questionsLeft} sommelier questions.`
-  const runCost = Math.max(1, Math.round(wineCount * VALUATION_COST_USD))
+  const runCost = Math.max(1, Math.round(wineCount * valuationPrice))
   const afterRun = balKnown ? bal - runCost : null
 
   return (
@@ -122,16 +127,30 @@ export function Settings() {
         </Button>
       </div>
 
-      {/* notifications */}
-      <Group title="Notifications">
-        <SettingsRow label="Drink-window reminders" description="Tell me when a wine enters its window" control={<Switch checked={S.reminders} onChange={(c) => s.toggleSetting('reminders', c)} label="Drink-window reminders" />} />
-        <SettingsRow label="Weekly cellar digest" description="A Sunday summary of value and what’s ready" control={<Switch checked={S.weekly} onChange={(c) => s.toggleSetting('weekly', c)} label="Weekly cellar digest" />} />
-      </Group>
-
       {/* usage credits */}
       <Group title="Usage credits">
+        {mb && (
+          <>
+            <SettingsRow
+              label="Balance on file"
+              description="Money paid in; settled statements draw from here"
+              control={
+                <span style={{ fontFamily: 'var(--ws-font-display)', fontSize: 18, color: 'var(--ws-ink)' }}>${mb.balance.toFixed(2)}</span>
+              }
+            />
+            <SettingsRow
+              label="This period so far"
+              description="Usage since your last statement, at your rate"
+              control={
+                <span style={{ fontFamily: 'var(--ws-font-display)', fontSize: 18, color: mb.outstanding > 0 ? 'var(--ws-ink)' : 'var(--ws-muted)' }}>
+                  {mb.outstanding > 0 ? `-$${mb.outstanding.toFixed(2)}` : '$0.00'}
+                </span>
+              }
+            />
+          </>
+        )}
         <SettingsRow
-          label="Balance"
+          label="Available"
           description={creditDesc}
           control={
             <span style={{ fontFamily: 'var(--ws-font-display)', fontSize: 22, color: floored || negative ? 'var(--ws-bordeaux)' : 'var(--ws-ink)' }}>
@@ -173,8 +192,8 @@ export function Settings() {
               Price {wineCount} {wineCount === 1 ? 'wine' : 'wines'} at live market?
             </div>
             <div style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--ws-ink)' }}>
-              Claude reads current merchant and auction listings for every wine in your cellar. This run costs roughly{' '}
-              <strong>${estUsd}</strong> in AI usage, and manual pricing is available once a month. Your automatic
+              Claude reads current merchant and auction listings for every wine in your cellar. This run bills roughly{' '}
+              <strong>${runCost}</strong> at your rate, and manual pricing is available once a month. Your automatic
               schedule keeps running either way.
             </div>
             {balKnown && (
@@ -227,13 +246,11 @@ export function Settings() {
       {/* sharing */}
       <Group title="Sharing">
         <SettingsRow label="Share my cellar" description="A read-only link for friends" control={<Switch checked={S.share} onChange={(c) => s.toggleSetting('share', c)} label="Share my cellar" />} />
-        <SettingsRow label="Household access" description="Let members add and edit bottles" control={<Switch checked={S.household} onChange={(c) => s.toggleSetting('household', c)} label="Household access" />} />
       </Group>
 
       {/* setup */}
       <Group title="Setup">
         <SettingsRow label="Manage cellars" description="Name, add or remove cellars (up to three)" control={<Button variant="secondary" onClick={s.openCellarManage}>Manage</Button>} />
-        <SettingsRow label="Replay onboarding" description="See the welcome and cellar setup flow again" control={<Button variant="secondary" onClick={s.replayOnboarding}>Replay</Button>} />
         <SettingsRow label="Admin console" description="Accounts, usage and cost, for administrators" control={<Button variant="secondary" onClick={s.openAdmin}>Open</Button>} />
       </Group>
 
