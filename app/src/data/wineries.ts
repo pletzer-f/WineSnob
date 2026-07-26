@@ -45,6 +45,10 @@ export function winerySlug(producer: string): string {
 const cache = new Map<string, Winery | null>()
 const inflight = new Map<string, Promise<Winery | null>>()
 
+// Estates whose missing photograph was already re-resolved this session:
+// the retry is a paid vision pass, so it runs at most once per estate.
+const imageRetried = new Set<string>()
+
 const clean = (v: unknown): string | undefined => {
   const s = typeof v === 'string' ? v.trim() : ''
   return s && s.toLowerCase() !== 'unknown' && s.toLowerCase() !== 'n/a' ? s : undefined
@@ -96,7 +100,23 @@ async function load(id: string, producer: string, hints: WineryHints): Promise<W
   if (!hasSupabase) return DEMO_WINERIES[id] ?? null
   // 1) the shared cache table
   const { data } = await supabase.from('wineries').select('*').eq('id', id).maybeSingle()
-  if (data) return fromRow(data)
+  if (data) {
+    const row = fromRow(data)
+    // Self-heal: a dossier without a photograph re-resolves its image once
+    // per session (vision picks only, never a second research). The server
+    // finds the estate itself when Commons has it, else a licensed regional
+    // vineyard view labelled "Regional view".
+    if (!row.imageUrl && !imageRetried.has(id)) {
+      imageRetried.add(id)
+      try {
+        const res = await supabase.functions.invoke('winery-profile', { body: { producer, imageOnly: true } })
+        if (!res.error && res.data?.winery) return fromRow(res.data.winery)
+      } catch {
+        // keep the dossier; the engraving stands for this session
+      }
+    }
+    return row
+  }
   // 2) fresh research, written server-side for everyone
   const res = await supabase.functions.invoke('winery-profile', {
     body: { producer, wine: hints.wine, region: hints.region, country: hints.country },

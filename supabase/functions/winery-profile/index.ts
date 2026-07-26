@@ -1,7 +1,8 @@
-// WineSnob — estate dossiers. Researches a wine estate ONCE with Claude +
-// live web search, resolves a properly licensed photograph of the ESTATE
-// ITSELF from Wikimedia (the château, winery or vineyard — never a bottle,
-// label or cork; always attributed), and caches the dossier in the global
+// WineSnob — estate dossiers. Researches a wine estate ONCE (Sonnet for the
+// dossier, a focused Opus pass to verify the annual production figure),
+// resolves a properly licensed photograph — the estate itself when Commons
+// has one, otherwise a licensed REGIONAL vineyard view labelled as such,
+// never a bottle, label or cork — and caches everything in the global
 // `wineries` table for every user. `imageOnly: true` re-resolves the image
 // for an existing row without paying for research again.
 
@@ -49,8 +50,23 @@ Rules:
 - wikipedia_title: the EXACT English Wikipedia article title for this estate if an article exists, else "".
 - Any field you cannot verify from search: "". Never guess from memory alone.`
 
+// The production figure gets its own verification pass on the strongest
+// model: it is the number collectors quote, so it is checked, not inherited.
+const PRODUCTION_SYSTEM = `You verify production facts about ONE wine estate. Use web search (estate site,
+importers, appellation bodies, serious trade press). Respond with ONLY JSON:
+{"production":"", "hectares":""}
+- production: the estate's annual output in its own terms, e.g. "about 240,000 bottles a year" or
+  "roughly 20,000 cases annually". Grand vin vs total: say which if sources distinguish.
+- hectares: vineyard area like "55 ha", when confidently found.
+- Empty string for anything you cannot verify from the sources you actually read. Never guess.`
+
 // ---- per-user usage log (feeds the admin cost view). Never fatal. ----
-function logUsage(req: Request | undefined, fn: string, usage: unknown) {
+// Prices per model so mixed Sonnet/Opus pipelines bill correctly.
+const MODEL_RATES: Record<string, [number, number]> = {
+  'claude-opus-4-8': [5, 25],
+  'claude-sonnet-4-6': [3, 15],
+}
+function logUsage(req: Request | undefined, fn: string, usage: unknown, model = 'claude-opus-4-8') {
   try {
     const svc = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     const base = Deno.env.get('SUPABASE_URL')
@@ -60,23 +76,65 @@ function logUsage(req: Request | undefined, fn: string, usage: unknown) {
     try {
       const token = (req?.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
       const payload = token.split('.')[1] || ''
-      const b64 = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '=')
-      userId = JSON.parse(atob(b64)).sub || null
+      const pad = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '=')
+      userId = JSON.parse(atob(pad)).sub || null
     } catch (_) {
       // anon or malformed token: log without attribution
     }
     const inTok = u.input_tokens || 0
     const outTok = u.output_tokens || 0
     const searches = u.server_tool_use?.web_search_requests || 0
-    const cost = (inTok * 5 + outTok * 25) / 1_000_000 + searches * 0.01
+    const [rIn, rOut] = MODEL_RATES[model] || MODEL_RATES['claude-opus-4-8']
+    const cost = (inTok * rIn + outTok * rOut) / 1_000_000 + searches * 0.01
     void fetch(`${base}/rest/v1/ai_usage`, {
       method: 'POST',
       headers: { apikey: svc, Authorization: `Bearer ${svc}`, 'content-type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ user_id: userId, fn, model: 'claude-opus-4-8', input_tokens: inTok, output_tokens: outTok, searches, cost_usd: Math.round(cost * 1e6) / 1e6 }),
+      body: JSON.stringify({ user_id: userId, fn, model, input_tokens: inTok, output_tokens: outTok, searches, cost_usd: Math.round(cost * 1e6) / 1e6 }),
     }).catch(() => {})
   } catch (_) {
     // logging must never break the feature
   }
+}
+
+// ---- credit gate: signed-in users only; new work pauses below the floor ----
+// The ledger meters every cent regardless (a database trigger on ai_usage);
+// this gate only decides whether NEW work may start. A task already under
+// way (any usage in the last 3 minutes) may always finish, so chunked runs
+// never die halfway. On internal errors the gate fails open: it must never
+// take a feature down.
+const CREDIT_FLOOR = -10
+async function creditGate(req: Request): Promise<Response | null> {
+  let claims: { role?: string; sub?: string } = {}
+  try {
+    const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
+    const payload = token.split('.')[1] || ''
+    const pad = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '=')
+    claims = JSON.parse(atob(pad))
+  } catch (_) {
+    claims = {}
+  }
+  if (claims.role !== 'authenticated' || !claims.sub) {
+    return json({ error: 'Sign in to use the AI features.' }, 401)
+  }
+  try {
+    const svc = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    const base = Deno.env.get('SUPABASE_URL')
+    if (!svc || !base) return null
+    const h = { apikey: svc, Authorization: `Bearer ${svc}` }
+    const since = new Date(Date.now() - 180000).toISOString()
+    const [balRes, activeRes] = await Promise.all([
+      fetch(`${base}/rest/v1/credit_balances?user_id=eq.${claims.sub}&select=balance_usd`, { headers: h }),
+      fetch(`${base}/rest/v1/ai_usage?user_id=eq.${claims.sub}&created_at=gte.${encodeURIComponent(since)}&select=id&limit=1`, { headers: h }),
+    ])
+    const bal = balRes.ok ? Number(((await balRes.json()) as { balance_usd?: number }[])?.[0]?.balance_usd ?? 0) : 0
+    const active = activeRes.ok ? (((await activeRes.json()) as unknown[])?.length ?? 0) > 0 : false
+    if (bal < CREDIT_FLOOR && !active) {
+      return json({ error: 'Your usage credit is used up. Ask your administrator to top up, then try again.', code: 'credit_floor' }, 402)
+    }
+  } catch (_) {
+    // fail open
+  }
+  return null
 }
 
 // ---- Wikimedia: find a photograph of the ESTATE, with licence + credit ----
@@ -216,11 +274,11 @@ function b64(buf: ArrayBuffer): string {
   return btoa(bin)
 }
 
-/** Claude LOOKS at the shortlisted photographs and picks the one that shows
- * the estate itself. Filenames lie; pixels do not. Costs a fraction of a
+/** Claude LOOKS at the shortlisted photographs and picks the best one for
+ * the given question. Filenames lie; pixels do not. Costs a fraction of a
  * cent, once per estate ever. Thumbnails are downloaded here and passed as
  * base64: Wikimedia refuses the API's own URL fetcher. */
-async function visionPick(key: string, req: Request, estateName: string, candidates: Candidate[]): Promise<Candidate | null> {
+async function visionPick(key: string, req: Request, question: string, candidates: Candidate[]): Promise<Candidate | null> {
   if (!candidates.length) return null
   try {
     const downloads = await Promise.all(
@@ -244,7 +302,7 @@ async function visionPick(key: string, req: Request, estateName: string, candida
     const content: unknown[] = pool.map((d) => ({ type: 'image', source: { type: 'base64', media_type: d.type, data: d.data } }))
     content.push({
       type: 'text',
-      text: `These ${pool.length} photographs are numbered 1 to ${pool.length} in order. Which ONE best shows the wine estate "${estateName}" itself: its chateau or winery building, courtyard, gate, cellar architecture, or its vineyards and landscape? Never choose wine bottles, labels, corks, glasses, barrels, people, paintings, sculptures, maps, logos or documents. Reply with ONLY JSON: {"pick": n} (1-based), or {"pick": 0} if none of them qualifies.`,
+      text: `These ${pool.length} photographs are numbered 1 to ${pool.length} in order. ${question} Never choose wine bottles, labels, corks, glasses, barrels, people, paintings, sculptures, maps, logos or documents. Reply with ONLY JSON: {"pick": n} (1-based), or {"pick": 0} if none of them qualifies.`,
     })
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -273,78 +331,68 @@ async function visionPick(key: string, req: Request, estateName: string, candida
  * multi-megabyte source would sink the whole request). */
 const visionSafe = (u?: string) => !!u && /\.(jpe?g|png|webp)$/i.test(u)
 
-/** The estate photograph: gather licensed candidates from Commons and the
- * article's lead image, prefilter the obvious non-photos by filename, then
- * let vision choose what actually shows the estate. */
-async function resolveImage(estateName: string, key: string, req: Request, wikipediaTitle?: string): Promise<{ url: string; attribution: string; license: string; source: string } | null> {
-  let candidates = await commonsSearch(`"${estateName}"`)
-  if (candidates.length < 4) {
-    const broad = await commonsSearch(estateName)
+function shortlist(candidates: Candidate[], scoreAgainst: string): Candidate[] {
+  return candidates
+    .filter((c) => visionSafe(c.url) && licensed(c))
+    .map((c) => ({ c, score: scoreCandidate(c, scoreAgainst) }))
+    .filter((x) => x.score > -40)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8)
+    .map((x) => x.c)
+}
+
+/** The photograph: the estate itself when Commons has one; otherwise a
+ * licensed vineyard view of the estate's REGION, labelled as a regional
+ * view. The engraving in the app remains the very last resort. */
+async function resolveImage(
+  estateName: string,
+  key: string,
+  req: Request,
+  wikipediaTitle?: string,
+  region?: string,
+): Promise<{ url: string; attribution: string; license: string; source: string } | null> {
+  const candidates = await commonsSearch(`"${estateName}"`)
+  if (candidates.length < 8) {
+    const broad = await commonsSearch(`${estateName} vineyard winery`)
     for (const c of broad) if (!candidates.some((x) => x.title === c.title)) candidates.push(c)
   }
   if (wikipediaTitle) {
     const lead = await pageImageCandidate(wikipediaTitle)
     if (lead && !candidates.some((c) => c.title === lead.title)) candidates.push(lead)
   }
-  // Only candidates we could legally show, ranked by filename plausibility,
-  // then judged by eye.
-  const pool = candidates
-    .filter((c) => visionSafe(c.url) && licensed(c))
-    .map((c) => ({ c, score: scoreCandidate(c, estateName) }))
-    .filter((x) => x.score > -40)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 8)
-    .map((x) => x.c)
+  const pool = shortlist(candidates, estateName)
   lastDebug = { candidates: candidates.length, pool: pool.map((c) => `${c.title} | ${smallThumb(c.url!)}`) }
-  const picked = await visionPick(key, req, estateName, pool)
-  return picked ? licensed(picked) : null
+  const picked = await visionPick(
+    key,
+    req,
+    `Which ONE best shows the wine estate "${estateName}" itself: its chateau or winery building, courtyard, gate, cellar architecture, or its vineyards and landscape?`,
+    pool,
+  )
+  if (picked) return licensed(picked)
+
+  // Regional fallback: an honest, beautiful vineyard view from the estate's
+  // own wine country, clearly labelled as a regional view.
+  if (region) {
+    const regionCands = await commonsSearch(`${region} vineyard`)
+    const regionPool = shortlist(regionCands, region)
+    lastDebug.regionPool = regionPool.map((c) => c.title)
+    const regionPick = await visionPick(
+      key,
+      req,
+      `Which ONE is the most beautiful photograph of wine vineyards or wine-country landscape in ${region}: rows of vines, rolling vineyard hills, or a vineyard with buildings in the distance?`,
+      regionPool,
+    )
+    if (regionPick) {
+      const lic = licensed(regionPick)
+      if (lic) return { ...lic, attribution: `Regional view · ${lic.attribution}` }
+    }
+  }
+  return null
 }
 
 // ---- the shared cache table, via the service role ----
 function restHeaders(svc: string): Record<string, string> {
   return { apikey: svc, Authorization: `Bearer ${svc}`, 'content-type': 'application/json' }
-}
-
-
-// ---- credit gate: signed-in users only; new work pauses below the floor ----
-// The ledger meters every cent regardless (a database trigger on ai_usage);
-// this gate only decides whether NEW work may start. A task already under
-// way (any usage in the last 3 minutes) may always finish, so chunked runs
-// never die halfway. On internal errors the gate fails open: it must never
-// take a feature down.
-const CREDIT_FLOOR = -10
-async function creditGate(req: Request): Promise<Response | null> {
-  let claims: { role?: string; sub?: string } = {}
-  try {
-    const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
-    const payload = token.split('.')[1] || ''
-    const b64 = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '=')
-    claims = JSON.parse(atob(b64))
-  } catch (_) {
-    claims = {}
-  }
-  if (claims.role !== 'authenticated' || !claims.sub) {
-    return json({ error: 'Sign in to use the AI features.' }, 401)
-  }
-  try {
-    const svc = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    const base = Deno.env.get('SUPABASE_URL')
-    if (!svc || !base) return null
-    const h = { apikey: svc, Authorization: `Bearer ${svc}` }
-    const since = new Date(Date.now() - 180000).toISOString()
-    const [balRes, activeRes] = await Promise.all([
-      fetch(`${base}/rest/v1/credit_balances?user_id=eq.${claims.sub}&select=balance_usd`, { headers: h }),
-      fetch(`${base}/rest/v1/ai_usage?user_id=eq.${claims.sub}&created_at=gte.${encodeURIComponent(since)}&select=id&limit=1`, { headers: h }),
-    ])
-    const bal = balRes.ok ? Number(((await balRes.json()) as { balance_usd?: number }[])?.[0]?.balance_usd ?? 0) : 0
-    const active = activeRes.ok ? (((await activeRes.json()) as unknown[])?.length ?? 0) > 0 : false
-    if (bal < CREDIT_FLOOR && !active) {
-      return json({ error: 'Your usage credit is used up. Ask your administrator to top up, then try again.', code: 'credit_floor' }, 402)
-    }
-  } catch (_) {
-    // fail open
-  }
-  return null
 }
 
 Deno.serve(async (req: Request) => {
@@ -367,12 +415,12 @@ Deno.serve(async (req: Request) => {
     const cachedRows = cached.ok ? await cached.json() : []
     const existing = Array.isArray(cachedRows) && cachedRows.length ? cachedRows[0] : null
 
-    // Re-resolve only the photograph for an existing dossier: one tiny
-    // vision call, no research cost.
+    // Re-resolve only the photograph for an existing dossier: vision calls
+    // only, no research cost.
     if (imageOnly) {
       if (!existing) return json({ error: 'No dossier to refresh.' }, 404)
       if (!key) return json({ error: 'ANTHROPIC_API_KEY is not configured on this project.' }, 500)
-      const image = await resolveImage(existing.name || name, key, req)
+      const image = await resolveImage(existing.name || name, key, req, undefined, existing.region || existing.appellation || undefined)
       const patch = {
         image_url: image?.url ?? null,
         image_attribution: image?.attribution ?? null,
@@ -392,13 +440,13 @@ Deno.serve(async (req: Request) => {
     if (existing) return json({ winery: existing, cached: true })
     if (!key) return json({ error: 'ANTHROPIC_API_KEY is not configured on this project.' }, 500)
 
-    // Research from live sources.
+    // Research from live sources. Sonnet writes the dossier.
     const hint = [wine && `producer of ${wine}`, region, country].filter(Boolean).join(', ')
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-opus-4-8',
+        model: 'claude-sonnet-4-6',
         max_tokens: 2000,
         system: SYSTEM,
         tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 6 }],
@@ -407,7 +455,7 @@ Deno.serve(async (req: Request) => {
     })
     if (!res.ok) throw new Error(`Anthropic API ${res.status}: ${await res.text()}`)
     const data = await res.json()
-    logUsage(req, 'winery-profile', data.usage)
+    logUsage(req, 'winery-profile', data.usage, 'claude-sonnet-4-6')
     if (data.stop_reason === 'refusal') throw new Error('The research request was declined.')
     const text = (data.content || [])
       .filter((b: { type: string }) => b.type === 'text')
@@ -421,7 +469,38 @@ Deno.serve(async (req: Request) => {
     }
 
     const displayName = clean(r.name) || name
-    const image = await resolveImage(displayName, key, req, clean(r.wikipedia_title) || undefined)
+
+    // Opus verifies the production figure (and vineyard area) separately;
+    // its confirmed numbers override the dossier's provisional ones.
+    try {
+      const prodRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-opus-4-8',
+          max_tokens: 500,
+          system: PRODUCTION_SYSTEM,
+          tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
+          messages: [{ role: 'user', content: `Estate: "${displayName}"${clean(r.region) ? `, ${clean(r.region)}` : ''}${clean(r.country) ? `, ${clean(r.country)}` : ''}. Verify its annual production and vineyard area.` }],
+        }),
+      })
+      if (prodRes.ok) {
+        const prodData = await prodRes.json()
+        logUsage(req, 'winery-profile', prodData.usage, 'claude-opus-4-8')
+        if (prodData.stop_reason !== 'refusal') {
+          const prodText = (prodData.content || []).filter((b: { type: string }) => b.type === 'text').map((b: { text: string }) => b.text).join('')
+          const prod = parseLooseJSON(prodText)
+          if (clean(prod.production)) r.production = prod.production
+          if (clean(prod.hectares)) r.hectares = prod.hectares
+        }
+      } else {
+        await prodRes.body?.cancel()
+      }
+    } catch (_) {
+      // the dossier's own figure stands if the verification pass fails
+    }
+
+    const image = await resolveImage(displayName, key, req, clean(r.wikipedia_title) || undefined, clean(r.region) || clean(r.appellation) || (region ? String(region) : undefined))
 
     const row = {
       id,
