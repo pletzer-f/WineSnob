@@ -28,6 +28,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // TEMPORARY (2026-07-27): kill-switch service worker. Clients stuck on
+      // an old cached bundle unregister their worker on next load and serve
+      // straight from the network. Revert to re-enable offline caching once
+      // the owner confirms every device shows the current build.
+      selfDestroying: true,
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       // Clean update handling: a new deploy takes control immediately and old
       // precache is purged, so clients don't get stuck on a stale bundle.
