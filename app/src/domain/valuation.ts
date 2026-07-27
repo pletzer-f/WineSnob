@@ -46,3 +46,19 @@ export function formatWindow(b: Bottle): { from?: number; to?: number } {
 export function unitValueNow(b: Bottle): number {
   return bottleValue(b) / Math.max(1, b.quantity)
 }
+
+/**
+ * Where a bottle stands against its drink window TODAY. Derived, never
+ * stored: a stored status ages while the calendar moves, so every display
+ * derives from the (format-adjusted) window and falls back to the stored
+ * field only when no window is known.
+ */
+export function bottleReadiness(b: Bottle, year = new Date().getFullYear()): 'cellaring' | 'ready' | 'past' {
+  const w = formatWindow(b)
+  if (typeof w.from === 'number' && typeof w.to === 'number') {
+    if (year < w.from) return 'cellaring'
+    if (year > w.to) return 'past'
+    return 'ready'
+  }
+  return b.status === 'ready' ? 'ready' : b.status === 'past' ? 'past' : 'cellaring'
+}

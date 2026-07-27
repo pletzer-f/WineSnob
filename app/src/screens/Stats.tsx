@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { SegmentedControl, SectionHeader, BarChart, DrinkWindow, Tag } from 'winesnob-design-system'
 import { useStore } from '@/store/store'
-import { bottleValue, unitValueNow } from '@/domain/valuation'
+import { bottleValue, unitValueNow, bottleReadiness } from '@/domain/valuation'
 import {
   RANGES,
   allocation,
@@ -88,8 +88,8 @@ export function Stats() {
     const valSource = marketed[0]?.marketSource
     const valAsOf = marketed.map((b) => b.marketAsOf).filter(Boolean).sort().pop()
 
-    const readyN = bottles.filter((b) => b.status === 'ready').reduce((a, b) => a + b.quantity, 0)
-    const cellaringN = bottles.filter((b) => b.status === 'cellaring').reduce((a, b) => a + b.quantity, 0)
+    const readyN = bottles.filter((b) => bottleReadiness(b) === 'ready').reduce((a, b) => a + b.quantity, 0)
+    const cellaringN = bottles.filter((b) => bottleReadiness(b) === 'cellaring').reduce((a, b) => a + b.quantity, 0)
     const pastN = bottles.filter((b) => b.status === 'past').reduce((a, b) => a + b.quantity, 0)
     const readiness = [
       { label: 'Ready to drink', value: readyN, hint: 'in their window now', dot: 'var(--ws-green)' },

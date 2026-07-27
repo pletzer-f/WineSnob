@@ -18,12 +18,15 @@ export interface DrinkWindowProps {
  * Reads at a glance on a BottleCard or detail view.
  */
 export function DrinkWindow({ from, to, current, status, className }: DrinkWindowProps) {
-  const now = current ?? Math.round((from + to) / 2)
+  // "Today" is the real year unless the caller says otherwise; a wine ten
+  // years past its window must read as past, with the marker pinned at the
+  // end of the track, never floating mid-window.
+  const now = current ?? new Date().getFullYear()
   const derived: NonNullable<DrinkWindowProps['status']> =
     status ?? (now < from ? 'cellaring' : now > to ? 'past' : 'ready')
 
-  const lo = Math.min(from, now) - 1
-  const hi = Math.max(to, now) + 1
+  const lo = from - 1
+  const hi = to + 1
   const span = hi - lo || 1
   const pct = (year: number) => Math.max(0, Math.min(100, ((year - lo) / span) * 100))
 

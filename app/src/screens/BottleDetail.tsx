@@ -6,7 +6,7 @@ import { isInlinePhoto } from '@/data/labels'
 import { getWineryProfile, type Winery } from '@/data/wineries'
 import { RegionArt } from '@/components/RegionArt'
 import { GlassGlyph } from '@/components/Sommelier'
-import { bottleValue, formatWindow, unitValueNow } from '@/domain/valuation'
+import { bottleReadiness, bottleValue, formatWindow, unitValueNow } from '@/domain/valuation'
 import { fmtDef, fmtLitres } from '@/domain/formats'
 import { siblingsOf, drinkVerdict } from '@/domain/wine'
 import { occasionLabel } from '@/domain/occasions'
@@ -143,7 +143,7 @@ export function BottleDetailScreen() {
         country={selected.country}
         grapes={selected.grapes}
         quantity={selected.quantity}
-        status={selected.status}
+        status={bottleReadiness(selected)}
         value={money(bottleValue(selected))}
         score={selected.score}
         drinkFrom={dwin.from}

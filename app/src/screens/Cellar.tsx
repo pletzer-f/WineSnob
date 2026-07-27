@@ -15,7 +15,7 @@ import { useStore } from '@/store/store'
 import { scopedBottles } from '@/store/selectors'
 import { SMART_COLLECTIONS } from '@/domain/collections'
 import { isInlinePhoto } from '@/data/labels'
-import { bottleValue } from '@/domain/valuation'
+import { bottleReadiness, bottleValue } from '@/domain/valuation'
 import { fmtDef } from '@/domain/formats'
 import { useMoney } from '@/lib/useMoney'
 import type { Bottle } from '@/domain/types'
@@ -55,10 +55,10 @@ export function Cellar() {
   const pool = useMemo(() => {
     const totalBottles = cellar.reduce((a, b) => a + b.quantity, 0)
     const totalValue = cellar.reduce((a, b) => a + bottleValue(b), 0)
-    const readyBottles = cellar.filter((b) => b.status === 'ready').reduce((a, b) => a + b.quantity, 0)
+    const readyBottles = cellar.filter((b) => bottleReadiness(b) === 'ready').reduce((a, b) => a + b.quantity, 0)
     const regions = new Set(cellar.map((b) => b.area)).size
     const countries = new Set(cellar.map((b) => b.country)).size
-    const cellaringBottles = cellar.filter((b) => b.status === 'cellaring').reduce((a, b) => a + b.quantity, 0)
+    const cellaringBottles = cellar.filter((b) => bottleReadiness(b) === 'cellaring').reduce((a, b) => a + b.quantity, 0)
     const avgVintage = cellar.length ? Math.round(cellar.reduce((a, b) => a + (typeof b.vintage === 'number' ? b.vintage : 0), 0) / cellar.length) : 0
     const avgScore = cellar.length ? Math.round(cellar.reduce((a, b) => a + b.score, 0) / cellar.length) : 0
     const byArea: Record<string, number> = {}
@@ -347,7 +347,7 @@ export function Cellar() {
                             {d.label}
                           </span>
                         )}
-                        <BottleCard name={b.name} producer={b.producer} vintage={b.vintage} region={b.region} quantity={b.quantity} status={b.status} value={money(bottleValue(b))} photo={photoThumb(b)} />
+                        <BottleCard name={b.name} producer={b.producer} vintage={b.vintage} region={b.region} quantity={b.quantity} status={bottleReadiness(b)} value={money(bottleValue(b))} photo={photoThumb(b)} />
                       </div>
                     )
                   })}
@@ -356,7 +356,7 @@ export function Cellar() {
                 <div style={{ background: 'var(--ws-surface)', border: '0.5px solid var(--ws-border)', borderRadius: 'var(--ws-radius-lg)', padding: '2px 16px', boxShadow: 'var(--ws-shadow-sm)' }}>
                   {g.bottles.map((b) => (
                     <div key={b.id} onClick={() => s.openBottle(b)} style={{ cursor: 'pointer' }}>
-                      <CellarRow name={b.name} producer={b.producer} vintage={b.vintage} region={b.region} quantity={b.quantity} status={b.status} photo={photoThumb(b) ?? (anyPhoto ? null : undefined)} />
+                      <CellarRow name={b.name} producer={b.producer} vintage={b.vintage} region={b.region} quantity={b.quantity} status={bottleReadiness(b)} photo={photoThumb(b) ?? (anyPhoto ? null : undefined)} />
                     </div>
                   ))}
                 </div>
