@@ -559,6 +559,23 @@ let priceSink: ((userId: string, rows: BottlePrice[]) => void) | null = null
 export function setPriceSink(fn: ((userId: string, rows: BottlePrice[]) => void) | null) {
   priceSink = fn
 }
+
+/** Market values write through their own direct channel, never the
+ * whole-snapshot sync: a stale open session can no longer erase a
+ * valuation it never saw. Registered by data/repo.ts. */
+export interface MarketWrite {
+  id: string
+  unit: number
+  low?: number
+  high?: number
+  source?: string
+  asOf?: string
+  read?: string
+}
+let marketSink: ((userId: string, rows: MarketWrite[]) => void) | null = null
+export function setMarketSink(fn: ((userId: string, rows: MarketWrite[]) => void) | null) {
+  marketSink = fn
+}
 export function setRemoteSync(fn: ((userId: string, data: PersistData) => void) | null) {
   remoteSync = fn
 }
@@ -904,6 +921,14 @@ export const useStore = create<Store>((set, get) => {
             return r ? { ...b, marketUnit: r.unit, marketLow: r.low, marketHigh: r.high, marketSource: r.source, marketAsOf: r.asOf, marketRead: r.read } : b
           }),
         }))
+        // Market values land in their own columns directly (wipe-proof
+        // against stale sessions), alongside the in-memory apply above.
+        if (get().userId && marketSink && res.results.length) {
+          marketSink(
+            get().userId!,
+            res.results.map((r) => ({ id: r.id, unit: r.unit, low: r.low, high: r.high, source: r.source, asOf: r.asOf, read: r.read })),
+          )
+        }
         // Append today's per-bottle prices to the history that powers
         // time-ranged movers.
         const day = todayISO()

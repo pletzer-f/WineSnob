@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { setPriceSink, setRemoteSync, setSnapshotSink } from '@/store/store'
+import { setMarketSink, setPriceSink, setRemoteSync, setSnapshotSink, type MarketWrite } from '@/store/store'
 import { inferArea, inferCountry } from '@/domain/wine'
 import type { PersistData } from '@/data/sync'
 import type { Bottle, Drink, Vintage, Wish } from '@/domain/types'
@@ -49,14 +49,16 @@ function profileRow(userId: string, d: PersistData) {
     updated_at: new Date().toISOString(),
   }
 }
+// Market columns are deliberately ABSENT from this payload: the whole
+// snapshot mirrors last-write-wins, and a stale session's mirror once wiped
+// freshly written valuations (hannes, 2026-07-27). Market values travel only
+// through saveMarketRemote below, so a push can never touch them.
 const bottleRow = (userId: string, b: Bottle) => ({
   id: b.id, user_id: userId, cellar_id: b.cellarId, name: b.name, producer: b.producer,
   vintage: String(b.vintage), region: b.region, area: b.area, country: b.country, colour: b.colour,
   status: b.status, quantity: b.quantity, unit: b.unit, paid: b.paid ?? null, format: b.format,
   grapes: b.grapes, score: b.score, rating: b.rating, drink_from: b.drinkFrom ?? null,
   drink_to: b.drinkTo ?? null, note: b.note, location: b.location ?? null, buy_again: !!b.buyAgain,
-  market_unit: b.marketUnit ?? null, market_low: b.marketLow ?? null, market_high: b.marketHigh ?? null,
-  market_source: b.marketSource ?? null, market_as_of: b.marketAsOf ?? null, market_read: b.marketRead ?? null,
   photo: b.photo && !b.photo.startsWith('data:') ? b.photo : null,
 })
 const drinkRow = (userId: string, r: Drink) => ({
@@ -176,6 +178,28 @@ export async function saveBottlePricesRemote(userId: string, rows: BottlePrice[]
   await db.from('bottle_prices').upsert(rows.map((r) => ({ user_id: userId, bottle_id: r.bottleId, day: r.day, unit: r.unit })))
 }
 
+/** Write market values straight to their columns, one bottle at a time.
+ * This is the ONLY path that touches market_* (bottleRow omits them), so a
+ * stale session's whole-snapshot mirror can never erase a valuation. */
+export async function saveMarketRemote(userId: string, rows: MarketWrite[]): Promise<void> {
+  await Promise.all(
+    rows.map((r) =>
+      db
+        .from('bottles')
+        .update({
+          market_unit: r.unit,
+          market_low: r.low ?? null,
+          market_high: r.high ?? null,
+          market_source: r.source ?? null,
+          market_as_of: r.asOf ?? null,
+          market_read: r.read ?? null,
+        })
+        .eq('user_id', userId)
+        .eq('id', r.id),
+    ),
+  )
+}
+
 /** Record one day's cellar worth (upsert; the latest write for a day wins).
  * Snapshots are written directly rather than through the whole-snapshot sync
  * so history is append-only and never bulk-deleted. */
@@ -205,6 +229,9 @@ export function startRemoteSync() {
   })
   setPriceSink((userId, rows) => {
     void saveBottlePricesRemote(userId, rows).catch((e) => console.error('Price history sync failed', e))
+  })
+  setMarketSink((userId, rows) => {
+    void saveMarketRemote(userId, rows).catch((e) => console.error('Market value sync failed', e))
   })
 }
 
