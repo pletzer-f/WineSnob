@@ -4,6 +4,7 @@ import { useStore } from '@/store/store'
 import { hasSupabase, supabase } from '@/lib/supabase'
 import { adminCall, fnLabel, generatePassword, statementNumber, type AdminOverview, type AdminUser, type BillingStatement, type CreditDetail, type UsageDetail, type WhoAmI } from '@/data/admin'
 import { exportUsageStatementWorkbook, printUsageStatement } from '@/data/exporter'
+import { BUILD_ID } from '@/lib/version'
 
 /** Token counts, quietly compact: 5.7M, 79.7K. */
 const tok = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(n))
@@ -103,7 +104,7 @@ export function Admin() {
       <div style={panel}>
         <header style={{ display: 'flex', alignItems: 'center', gap: 'var(--ws-space-4)' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={kicker}>WineSnob administration{hasSupabase ? '' : ' · demo data'}</div>
+            <div style={kicker}>WineSnob administration{hasSupabase ? '' : ' · demo data'} · build {BUILD_ID}</div>
             <h1 style={h1}>Admin</h1>
           </div>
           {step === 'dash' && (

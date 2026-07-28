@@ -62,7 +62,7 @@ function Intro({ onBegin, onSkip }: { onBegin: (m: 'signup' | 'signin') => void;
           Sign in
         </button>
         <Button variant="primary" size="sm" onClick={() => onBegin('signup')}>
-          Create your cellar
+          {hasSupabase ? 'Request an invitation' : 'Create your cellar'}
         </Button>
       </div>
 
@@ -84,7 +84,7 @@ function Intro({ onBegin, onSkip }: { onBegin: (m: 'signup' | 'signin') => void;
           </div>
           <div className="ws-land-ctas">
             <Button variant="primary" onClick={() => onBegin('signup')}>
-              Create your cellar
+              {hasSupabase ? 'Request an invitation' : 'Create your cellar'}
             </Button>
             <button className="ws-linkish" style={heroLink} onClick={() => onBegin('signin')}>
               I already have one
@@ -124,7 +124,7 @@ function Intro({ onBegin, onSkip }: { onBegin: (m: 'signup' | 'signin') => void;
           </p>
           <div style={{ marginTop: 26 }}>
             <Button variant="primary" onClick={() => onBegin('signup')}>
-              Create your cellar
+              {hasSupabase ? 'Request an invitation' : 'Create your cellar'}
             </Button>
           </div>
         </div>
@@ -321,6 +321,43 @@ function Join({ mode, setMode, onBack, onConfirmNeeded, onJoined }: { mode: 'sig
     }
   }
 
+  // Live membership is by invitation: accounts are created personally by
+  // the house, never through an open form. The demo keeps the walkthrough.
+  if (hasSupabase && signup) {
+    return (
+      <section className="ws-land-step">
+        <div className="ws-stagger ws-land-step__inner">
+          <StepHead
+            act="Act II · Join"
+            title="By invitation."
+            sub="WineSnob is a private membership. Every account is set up personally for its collector."
+            onBack={onBack}
+          />
+          <div className="ws-signin" style={{ boxShadow: 'var(--ws-shadow)' }}>
+            <div className="ws-signin__form">
+              <div style={{ fontSize: 14.5, lineHeight: 1.65, color: 'var(--ws-ink)' }}>
+                Write to us and we will prepare your cellar, your access and a personal walkthrough.
+              </div>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  window.location.href = 'mailto:fabian.pletzer@pletzer-gruppe.at?subject=WineSnob%20invitation'
+                }}
+              >
+                Request an invitation
+              </Button>
+            </div>
+            <div className="ws-signin__foot">
+              <button onClick={() => setMode('signin')} style={switchLink}>
+                Already a member? <span style={{ color: 'var(--ws-bordeaux)', fontWeight: 500 }}>Sign in</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section className="ws-land-step">
       <div className="ws-stagger ws-land-step__inner">
@@ -357,7 +394,8 @@ function Join({ mode, setMode, onBack, onConfirmNeeded, onJoined }: { mode: 'sig
                 </>
               ) : (
                 <>
-                  New here? <span style={{ color: 'var(--ws-bordeaux)', fontWeight: 500 }}>Create a cellar</span>
+                  New here?{' '}
+                  <span style={{ color: 'var(--ws-bordeaux)', fontWeight: 500 }}>{hasSupabase ? 'Request an invitation' : 'Create a cellar'}</span>
                 </>
               )}
             </button>

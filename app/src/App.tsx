@@ -11,6 +11,7 @@ import { Modals } from '@/modals/Modals'
 import { Sommelier } from '@/components/Sommelier'
 import { Admin } from '@/screens/Admin'
 import { Insurance } from '@/screens/Insurance'
+import { StaleBuildNotice } from '@/components/StaleBuildNotice'
 import { ResetPassword } from '@/screens/ResetPassword'
 import { Onboarding } from '@/screens/Onboarding'
 import { Cellar } from '@/screens/Cellar'
@@ -124,6 +125,7 @@ export function App() {
         <Landing onDone={() => setShowLanding(false)} />
         {adminOpen && <Admin />}
         {pwRecovery && <ResetPassword />}
+        <StaleBuildNotice />
         <Toaster />
       </>
     )
@@ -135,6 +137,7 @@ export function App() {
         <Onboarding />
         {adminOpen && <Admin />}
         {pwRecovery && <ResetPassword />}
+        <StaleBuildNotice />
         <Toaster />
       </>
     )
@@ -151,6 +154,7 @@ export function App() {
       {insuranceOpen && <Insurance />}
       {adminOpen && <Admin />}
       {pwRecovery && <ResetPassword />}
+      <StaleBuildNotice />
       <Toaster />
     </>
   )
